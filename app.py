@@ -55,6 +55,10 @@ class Chat:
         return text
 
 app = Flask(__name__)
+from flask_sslify import SSLify
+if 'DYNO' in os.environ: # only trigger SSLify if the app is running on Heroku
+    sslify = SSLify(app)
+
 LRU_MAX = 420_69
 chat_cache = cachetools.LRUCache(LRU_MAX)
 
