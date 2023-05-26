@@ -61,6 +61,24 @@ class ElevenLabsTTS:
 
 
 # %%
+class GttsTTS:
+    WOMAN = 'us'
+    MAN   = 'co.in'
+    def __init__(self, voice_id=None):
+        self.tld = voice_id
+
+    @retrying.retry(stop_max_attempt_number=5, wait_fixed=2000)
+    def tts(self, text):
+        speech = gTTS(text=text, lang='en', tld=self.tld, slow=False)
+        with tempfile.NamedTemporaryFile(delete=True) as fp:
+            temp_filename = fp.name
+            speech.save(temp_filename)
+            with open(temp_filename, 'rb') as f:
+                audio_data = f.read()
+        return audio_data
+
+
+# %%
 class Chat:
     class Model(enum.Enum):
         GPT3_5 = "gpt-3.5-turbo"
@@ -118,7 +136,7 @@ class Chat:
 
 # %%
 class PodcastChat(Chat):
-    def __init__(self, topic, podcast="award winning NPR", max_length=4096//2, hosts=['Tom', 'Jen'], host_voices=[ElevenLabsTTS.MAN, ElevenLabsTTS.WOMAN]):
+    def __init__(self, topic, podcast="award winning NPR", max_length=4096//2, hosts=['Tom', 'Jen'], host_voices=[ElevenLabsTTS(voice_id=ElevenLabsTTS.MAN), ElevenLabsTTS(voice_id=ElevenLabsTTS.WOMAN)]):
         system = f"You are an {podcast} podcast with hosts {hosts[0]} and {hosts[1]}."
         super().__init__(system, max_length=max_length)
         self._podcast = podcast
@@ -127,8 +145,7 @@ class PodcastChat(Chat):
         self._history.append({
             "role": "user", "content": f"Generate a podcast episode about {topic}, including history and other fun facts. Reference published scientific journals."
         })
-        self._tts_h1 = ElevenLabsTTS(voice_id=host_voices[0])
-        self._tts_h2 = ElevenLabsTTS(voice_id=host_voices[1])
+        self._tts_h1, self._tts_h2 = host_voices
 
     def text2speech(self, text, spacing_ms=350):
         tmpdir = '/tmp'
@@ -331,10 +348,10 @@ class Episode:
 # %%
 
 # %% jupyter={"outputs_hidden": true}
-# %%time
-ep = Episode(episode_type='narration', topic="Logitechs 5 Year Plan to $10B in Revenue by Building Products in Computer Peripherals, Gaming, and Video Collaboration With AI")
-outline, txt = ep.step(nparts=3)
-ep.upload(ep.chat._topic, '\n'.join(outline))
+# # %%time
+# ep = Episode(episode_type='narration', topic="Logitechs 5 Year Plan to $10B in Revenue by Building Products in Computer Peripherals, Gaming, and Video Collaboration With AI")
+# outline, txt = ep.step(nparts=3)
+# ep.upload(ep.chat._topic, '\n'.join(outline))
 
 # %%
 
