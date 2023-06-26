@@ -185,7 +185,7 @@ class PodcastChat(Chat):
             logger.info('concatting audio')
             audio = b''.join(audios)
             logger.info('done with audio!')
-            display(IPython.display.Audio(audio, autoplay=False))
+            IPython.display.display(IPython.display.Audio(audio, autoplay=False))
             return audio
             
     def step(self, msg=None, skip_aud=False, ret_aud=True, **kwargs):
