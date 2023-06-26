@@ -4,3 +4,11 @@ tiktoken==0.3.0
 structlog==22.3.0
 cachetools==5.2.0
 flask_sslify==0.1.5
+IPython
+structlog
+gtts
+PyGithub
+retrying
+bs4
+feedparser
+PyPDF2
