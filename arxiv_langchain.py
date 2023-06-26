@@ -210,7 +210,7 @@ class ArxivRunner:
 
 
 # +
-JINGLE_FILE_PATH = '/Users/jong/Downloads/jazzstep.mp3'
+JINGLE_FILE_PATH = 'jazzstep.mp3'
 MODEL = 'gpt-3.5-turbo-16k'
 HOST_VOICES = [GttsTTS(GttsTTS.MAN), GttsTTS(GttsTTS.WOMAN)]
 PODCAST_ARGS = ("ArxivPodcastGPT", "ArxivPodcastGPT.github.io", "podcasts/ComputerScience/Consolidated/podcast.xml")
@@ -267,14 +267,14 @@ class AudioCompletedEpisode(Episode):
 arxiv_categories = ["AI", "CL", "CC", "CE", "CG", "GT", "CV", "CY", "CR", "DS", "DB", "DL", "DM", "DC", "ET", "FL", "GL", "GR", "AR", "HC", "IR", "IT", "LO", "LG", "MS", "MA", "MM", "NI", "NE", "NA", "OS", "OH", "PF", "PL", "RO", "SI", "SE", "SD", "SC", "SY"]
 
 def run(arxiv_category):
+    # TODO: Multi thread each part
     audios, texts = create_large_episode(arxiv_category)
     ep = AudioCompletedEpisode(audios, podcast_args=PODCAST_ARGS)
     ep.upload(f'{arxiv_category}: {get_title(texts)}', '\n'.join(texts))
 
 
 # +
-# ep = AudioCompletedEpisode(audios, podcast_args=PODCAST_ARGS)
-# ep.upload(f'{arxiv_category}: {get_title(texts)}', '\n'.join(texts))
+# run('cs.'+'IR')
 # -
 
 """TODO:

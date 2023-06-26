@@ -136,7 +136,7 @@ class Chat:
 
 # %%
 class PodcastChat(Chat):
-    def __init__(self, topic, podcast="award winning NPR", max_length=4096//2, hosts=['Tom', 'Jen'], host_voices=[ElevenLabsTTS(voice_id=ElevenLabsTTS.MAN), ElevenLabsTTS(voice_id=ElevenLabsTTS.WOMAN)]):
+    def __init__(self, topic, podcast="award winning NPR", max_length=4096//2, hosts=['Tom', 'Jen'], host_voices=[GttsTTS(GttsTTS.MAN), GttsTTS(GttsTTS.WOMAN)]):
         system = f"You are an {podcast} podcast with hosts {hosts[0]} and {hosts[1]}."
         super().__init__(system, max_length=max_length)
         self._podcast = podcast
