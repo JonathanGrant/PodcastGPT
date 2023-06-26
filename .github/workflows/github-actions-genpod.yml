@@ -20,4 +20,4 @@ jobs:
         run: pip install -r requirements.txt
       # Step 4: Run the Python script
       - name: Run arxiv script
-        run: python -c 'from arxiv import run; run("cs.CG")'
+        run: python -c 'from arxiv_langchain import run; run("cs.CG")'
