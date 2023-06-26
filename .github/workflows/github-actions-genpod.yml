@@ -6,6 +6,9 @@ on:
 jobs:
   run-script:
     runs-on: ubuntu-latest
+    env:
+      OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
+      GH_KEY: ${{ secrets.GH_KEY }}
     steps:
       # Step 1: Checkout the repository
       - name: Checkout code
