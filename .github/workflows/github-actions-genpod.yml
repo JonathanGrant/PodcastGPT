@@ -1,0 +1,22 @@
+name: Run Arxiv Script
+on:
+  schedule:
+    - cron: '0 0 * * *' # This schedules the action to run every day at midnight
+jobs:
+  run-script:
+    runs-on: ubuntu-latest
+    steps:
+      # Step 1: Checkout the repository
+      - name: Checkout code
+        uses: actions/checkout@v2
+      # Step 2: Setup Python
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.9.x'
+      # Step 3: Install dependencies if any (uncomment if needed)
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      # Step 4: Run the Python script
+      - name: Run arxiv script
+        run: python -c 'from arxiv import run; run("cs.CG")'
