@@ -4,8 +4,12 @@ on:
     - cron: '0 0 * * *' # This schedules the action to run every day at midnight
   workflow_dispatch: # This allows manual triggering
 jobs:
-  run-script:
+  run-scripts:
+    name: Run arxiv script for ${{ matrix.category }}
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        category: ["cs.AI", "cs.IR", "cs.HC", "cs.LG", "cs.RO"]
     env:
       OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
       GH_KEY: ${{ secrets.GH_KEY }}
@@ -22,5 +26,5 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
       # Step 4: Run the Python script
-      - name: Run arxiv script
-        run: python -c 'from arxiv_langchain import run; run("cs.CG")'
+      - name: Run arxiv script ${{ matrix.category }}
+        run: python -c 'from arxiv_langchain import run; run("${{ matrix.category }}")'
