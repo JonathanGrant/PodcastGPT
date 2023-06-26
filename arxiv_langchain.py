@@ -263,13 +263,19 @@ class AudioCompletedEpisode(Episode):
         self.pod = PodcastRSSFeed(*podcast_args)
 
 
-categories = ["AI", "CL", "CC", "CE", "CG", "GT", "CV", "CY", "CR", "DS", "DB", "DL", "DM", "DC", "ET", "FL", "GL", "GR", "AR", "HC", "IR", "IT", "LO", "LG", "MS", "MA", "MM", "NI", "NE", "NA", "OS", "OH", "PF", "PL", "RO", "SI", "SE", "SD", "SC", "SY"]
-arxiv_category = 'cs.' + categories[1]
-audios, texts = create_large_episode(arxiv_category)
-Audio(b''.join(audios))
+# +
+arxiv_categories = ["AI", "CL", "CC", "CE", "CG", "GT", "CV", "CY", "CR", "DS", "DB", "DL", "DM", "DC", "ET", "FL", "GL", "GR", "AR", "HC", "IR", "IT", "LO", "LG", "MS", "MA", "MM", "NI", "NE", "NA", "OS", "OH", "PF", "PL", "RO", "SI", "SE", "SD", "SC", "SY"]
 
-ep = AudioCompletedEpisode(audios, podcast_args=PODCAST_ARGS)
-ep.upload(f'{arxiv_category}: {get_title(texts)}', '\n'.join(texts))
+def run(arxiv_category):
+    audios, texts = create_large_episode(arxiv_category)
+    ep = AudioCompletedEpisode(audios, podcast_args=PODCAST_ARGS)
+    ep.upload(f'{arxiv_category}: {get_title(texts)}', '\n'.join(texts))
+
+
+# +
+# ep = AudioCompletedEpisode(audios, podcast_args=PODCAST_ARGS)
+# ep.upload(f'{arxiv_category}: {get_title(texts)}', '\n'.join(texts))
+# -
 
 """TODO:
 Create hosting flask server
