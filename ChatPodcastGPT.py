@@ -34,7 +34,7 @@ from xml.etree import ElementTree as ET
 import requests
 from bs4 import BeautifulSoup
 logger = structlog.getLogger()
-openai.api_key_path = '/Users/jong/.openai_key'
+openai.api_key = os.environ.get("OPENAI_KEY", open('/Users/jong/.openai_key').read().strip())
 
 
 # %%
@@ -248,7 +248,7 @@ class PodcastRSSFeed:
     
     def upload_episode(self, file_path, file_name, episode_title, episode_description):
         # Authenticate with GitHub
-        token = open("/Users/jong/.gh_token").read().strip()
+        token = os.environ.get("GH_KEY", open("/Users/jong/.gh_token").read().strip())
         gh = Github(token)
 
         # Get the repository
@@ -276,7 +276,7 @@ class PodcastRSSFeed:
 
     def upload_to_github(self, file_name, file_content, commit_message, sha=None):
         # Prepare API request headers
-        token = open("/Users/jong/.gh_token").read().strip()
+        token = os.environ.get("GH_KEY", open("/Users/jong/.gh_token").read().strip())
         gh = Github(token)
         # Get the repository
         try:
