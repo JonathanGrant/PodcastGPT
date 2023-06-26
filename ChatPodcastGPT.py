@@ -143,7 +143,7 @@ class PodcastChat(Chat):
         self._topic = topic
         self._hosts = hosts
         self._history.append({
-            "role": "user", "content": f"Generate a podcast episode about {topic}, including history and other fun facts. Reference published scientific journals."
+            "role": "user", "content": f"Generate an informative and entertaining podcast episode about {topic}. Make sure to teach complex topics in an intuitive way."
         })
         self._tts_h1, self._tts_h2 = host_voices
 
@@ -158,7 +158,7 @@ class PodcastChat(Chat):
                 logger.info(f'received tts {i=}')
                 return s
 
-            text = text.replace('\n', '!!!LINEBREAK!!!').replace('\\', '')
+            text = text.replace('\n', '!!!LINEBREAK!!!').replace('\\', '').replace('"', '')
             # Build text one at a time
             currline, currname = "", self._hosts[0]
             name2tld = {self._hosts[0]: 'co.uk', self._hosts[1]: 'com'}
@@ -188,8 +188,9 @@ class PodcastChat(Chat):
             display(IPython.display.Audio(audio, autoplay=False))
             return audio
             
-    def step(self, msg=None, ret_aud=True, **kwargs):
+    def step(self, msg=None, skip_aud=False, ret_aud=True, **kwargs):
         msg = self.message(msg, **kwargs)
+        if skip_aud: return msg
         aud = self.text2speech(msg)
         if ret_aud: return msg, aud
         return msg
@@ -213,6 +214,7 @@ class PodcastRSSFeed:
         outfile = tempfile.NamedTemporaryFile().name + '.xml'
         raw_url = f'https://raw.githubusercontent.com/{self.org}/{self.repo}/main/{self.xml_path}'
         response = requests.get(raw_url)
+        print(raw_url)
         if response.status_code != 200:
             raise Exception(response.text)
         with open(outfile, 'wb') as file:
@@ -250,7 +252,10 @@ class PodcastRSSFeed:
         gh = Github(token)
 
         # Get the repository
-        repo = gh.get_user().get_repo(self.repo)
+        try:
+            repo = gh.get_user().get_repo(self.repo)
+        except:
+            repo = gh.get_organization(self.org).get_repo(self.repo)
 
         # Upload the audio file
         podsha = None
@@ -274,7 +279,10 @@ class PodcastRSSFeed:
         token = open("/Users/jong/.gh_token").read().strip()
         gh = Github(token)
         # Get the repository
-        repo = gh.get_user().get_repo(self.repo)
+        try:
+            repo = gh.get_user().get_repo(self.repo)
+        except:
+            repo = gh.get_organization(self.org).get_repo(self.repo)
 
         if sha:
             repo.update_file(file_name, commit_message, file_content, sha)
