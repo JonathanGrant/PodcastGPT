@@ -2,6 +2,7 @@ name: Run Arxiv Script
 on:
   schedule:
     - cron: '0 0 * * *' # This schedules the action to run every day at midnight
+  workflow_dispatch: # This allows manual triggering
 jobs:
   run-script:
     runs-on: ubuntu-latest
