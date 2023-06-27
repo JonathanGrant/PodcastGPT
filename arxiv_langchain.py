@@ -26,6 +26,7 @@ from bs4 import BeautifulSoup
 import requests
 import retrying
 from IPython.display import Audio
+import datetime
 
 MAX_TOKENS = 4096
 JOIN_NUM_DEFAULT = 300
@@ -270,11 +271,9 @@ def run(arxiv_category):
     # TODO: Multi thread each part
     audios, texts = create_large_episode(arxiv_category)
     ep = AudioCompletedEpisode(audios, podcast_args=PODCAST_ARGS)
-    ep.upload(f'{arxiv_category}: {get_title(texts)}', '\n'.join(texts))
+    ep.upload(f'{datetime.datetime.now():%Y-%m-%d} {arxiv_category}: {get_title(texts)}', '\n'.join(texts))
 
 
-# +
-# run('cs.'+'IR')
 # -
 
 """TODO:
