@@ -25,6 +25,7 @@ from PyPDF2 import PdfReader
 from bs4 import BeautifulSoup
 import requests
 import retrying
+import random
 from IPython.display import Audio
 import datetime
 
@@ -186,7 +187,10 @@ class ArxivEpisode(PDFEpisode):
 class CommercialGenerator:
     def get_random_company(self):
         chat = Chat("Return simple plaintext responses only.")
-        return chat.message("Write just 1 funny, weird, creative made up company that doesn't exist.", temperature=1)
+        with open("nouns.txt") as f:
+            nouns = f.read().splitlines()
+        random_noun = random.choice(nouns)
+        return chat.message(f"Write just 1 funny, weird, creative made up company that doesn't exist involving {random_noun}.", temperature=1)
 
     def generate(self, company=None):
         if company is None:
@@ -253,7 +257,7 @@ def create_large_episode(arxiv_category, limit=5):
 def get_title(texts):
     chat = Chat("Return just simple plaintext.")
     return chat.message(
-        "Given the following papers, write a title that captures all of them. " + 
+        "Given the following papers, write a clickbait title that captures all of them. " + 
         ", ".join(txt.split(' Title ')[-1] for txt in texts)
     )
 
@@ -271,17 +275,19 @@ def run(arxiv_category):
     # TODO: Multi thread each part
     audios, texts = create_large_episode(arxiv_category)
     ep = AudioCompletedEpisode(audios, podcast_args=PODCAST_ARGS)
-    ep.upload(f'{datetime.datetime.now():%Y-%m-%d} {arxiv_category}: {get_title(texts)}', '\n'.join(texts))
+    ep.upload(f'{datetime.datetime.now():%Y-%m-%d} {arxiv_category}: {get_title(texts)}', '\n\n'.join(texts))
 
 
 # -
 
 """TODO:
-Create hosting flask server
-Automate creation of podcasts through github actions
 
-Joncompete blog
 """
 pass
+
+# +
+# a, b = CommercialGenerator().generate()
+# a
+# -
 
 
