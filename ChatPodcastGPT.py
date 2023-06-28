@@ -21,6 +21,7 @@ import IPython
 import enum
 import structlog
 from gtts import gTTS
+import uuid
 import datetime as dt
 import requests
 import concurrent.futures
@@ -344,16 +345,13 @@ class Episode:
         return outline, '\n'.join(self.texts)
 
     def upload(self, title, descr):
-        title_small = title.lower().replace(" ", "_")
+        title_small = title.lower().replace(" ", "_")[:16] + str(uuid.uuid4())  # I had a filename too long once
         with tempfile.TemporaryDirectory() as tmpdir:
             tmppath = os.path.join(tmpdir, "audio_file.mp3")
             with open(tmppath, "wb") as f:
                 f.write(b''.join(self.sounds))
             self.pod.upload_episode(tmppath, f"podcasts/audio/{title_small}.mp3", title, descr)
 
-
-
-# %%
 
 # %% jupyter={"outputs_hidden": true}
 # # %%time
