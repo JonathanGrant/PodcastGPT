@@ -84,7 +84,7 @@ class PDFEpisode(Episode):
     
     def write_one_part(self, chat_msg):
         chat = PodcastChat(**{**self._kwargs, 'topic': self.title})
-        msg = chat.step(msg=chat_msg, model=self.model, skip_aud=True)
+        msg = chat.step(msg=chat_msg, model=self.model, skip_aud=True, frequency_penalty=0.5)
         return msg
 
     @retrying.retry(stop_max_attempt_number=3, wait_fixed=2000)
@@ -93,7 +93,7 @@ class PDFEpisode(Episode):
         chat = PodcastChat(max_length=12_000, **{**self._kwargs, 'topic': self.title})
         msg = "Rewrite the following podcast episode as one complete single episode.\n"
         msg += "\n".join(texts)
-        msg, aud = chat.step(msg=msg, model='gpt-3.5-turbo-16k', ret_aud=True)
+        msg, aud = chat.step(msg=msg, model='gpt-3.5-turbo-16k', ret_aud=True, frequency_penalty=0.75)
         if len(msg) < 500:
             raise ValueError(f"Returned msg too short. Suspecting an error. [{msg=}]")
         return msg, aud
@@ -196,8 +196,8 @@ class CommercialGenerator:
         if company is None:
             company = self.get_random_company()
         chat = PodcastChat(f"Very short commercial for {company}", host_voices=[GttsTTS(GttsTTS.MAN), GttsTTS(GttsTTS.WOMAN)])
-        chat._history[-1] = {"role": "user", "content": f"Generate a very funny, weird, and short commercial for {company}. Make sure to say phrases like 'This podcast brought to you by' or 'Sponsored by'"}
-        return chat.step()
+        chat._history[-1] = {"role": "user", "content": f"Generate a very funny, weird, and short commercial for {company}, who is sponsoring the podcast."}
+        return chat.step(frequency_penalty=1.2, max_tokens=420)
 
 
 class ArxivRunner:
