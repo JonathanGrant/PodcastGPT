@@ -240,6 +240,7 @@ class PodcastRSSFeed:
             'type': content_type,
             'length': str(file_length),
         })
+        ET.SubElement(item, 'guid').text = str(uuid.uuid4())
 
         # Convert back to string and pretty-format
         pretty_xml = minidom.parseString(ET.tostring(root)).toprettyxml(indent='  ')
