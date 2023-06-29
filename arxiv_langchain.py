@@ -197,7 +197,7 @@ class CommercialGenerator:
             company = self.get_random_company()
         chat = PodcastChat(f"Very short commercial for {company}", host_voices=[GttsTTS(GttsTTS.MAN), GttsTTS(GttsTTS.WOMAN)])
         chat._history[-1] = {"role": "user", "content": f"Generate a very funny, weird, and short commercial for {company}, who is sponsoring the podcast."}
-        return chat.step(frequency_penalty=1.2, max_tokens=420)
+        return chat.step(frequency_penalty=1.2)
 
 
 class ArxivRunner:
