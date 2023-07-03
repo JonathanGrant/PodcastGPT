@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        category: ["cs.AI", "cs.IR", "cs.HC", "cs.LG", "cs.RO"]
+        category: ["cs.AI", "cs.LG"]
     env:
       OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
       GH_KEY: ${{ secrets.GH_KEY }}
