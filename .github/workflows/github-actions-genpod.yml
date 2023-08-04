@@ -1,7 +1,7 @@
 name: Run Arxiv Script
 on:
   schedule:
-    - cron: '6 8 * * *' # This schedules the action to run every day at 8am UTC which is 4am EDT
+    - cron: '6 8 2 * *' # This schedules the action to run every day at 8am UTC which is 4am EDT
   workflow_dispatch: # This allows manual triggering
 jobs:
   run-scripts:
