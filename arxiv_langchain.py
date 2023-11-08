@@ -5,11 +5,11 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.14.5
+#       jupytext_version: 1.15.0
 #   kernelspec:
-#     display_name: '3.11'
+#     display_name: Python 3 (ipykernel)
 #     language: python
-#     name: '3.11'
+#     name: python3
 # ---
 
 # +
@@ -29,8 +29,9 @@ import random
 from IPython.display import Audio
 import datetime
 
-MAX_TOKENS = 4096
+MAX_TOKENS = 120_000 # GPT4-128k
 JOIN_NUM_DEFAULT = 300
+DEFAULT_TEXTGEN_MODEL = 'gpt-4-1106-preview'
 
 
 # -
@@ -38,7 +39,7 @@ JOIN_NUM_DEFAULT = 300
 class PDFEpisode(Episode):
     PDFPart = collections.namedtuple('PDFPart', 'title text')
 
-    def __init__(self, title, model='gpt-3.5-turbo-16k', **kwargs):
+    def __init__(self, title, model=DEFAULT_TEXTGEN_MODEL, **kwargs):
         self.title = title
         self.model = model
         self.topic = kwargs.pop('topic', self.title) or self.title
@@ -53,27 +54,29 @@ class PDFEpisode(Episode):
             pdf = PdfReader(f)
             return ''.join(page.extract_text() for page in pdf.pages)
 
-    def split_into_parts(self, text, max_tokens=MAX_TOKENS // 2):
+    def split_into_parts(self, text, max_tokens=MAX_TOKENS):
         """Split the text into parts based on titles and tokens."""
         lines = text.split("\n")
         parts = []
         current_part = []
-        current_title = 'Abstract'
+        current_title = 'Paper'
         for line in lines:
-            if re.match(r'\d+\s[A-Za-z]', line):
-                if current_part:
-                    parts.append(self.PDFPart(current_title, "\n".join(current_part)))
-                current_title = line
-                current_part = []
-            else:
-                current_part.append(line)
+            # if re.match(r'\d+\s[A-Za-z]', line):
+            #     if current_part:
+            #         parts.append(self.PDFPart(current_title, "\n".join(current_part)))
+            #     current_title = line
+            #     current_part = []
+            # else:
+            current_part.append(line)
 
             while Chat.num_tokens_from_text('\n'.join(current_part)) > max_tokens:
                 part_text = '\n'.join(current_part)
                 shortened_part, current_part = part_text[:max_tokens * 2], [part_text[max_tokens * 2:]]
+                logger.info("PartAdd1")
                 parts.append(self.PDFPart(current_title, shortened_part))
 
         if current_part:
+            logger.info("PartAdd2")
             parts.append(self.PDFPart(current_title, "\n".join(current_part)))
         return parts
 
@@ -90,10 +93,10 @@ class PDFEpisode(Episode):
     @retrying.retry(stop_max_attempt_number=3, wait_fixed=2000)
     def concat_podcast_parts(self, texts):
         """Given list of texts from chatGPT about the podcast."""
-        chat = PodcastChat(max_length=12_000, **{**self._kwargs, 'topic': self.title})
-        msg = "Rewrite the following podcast episode as one complete single episode.\n"
+        chat = PodcastChat(max_length=MAX_TOKENS, **{**self._kwargs, 'topic': self.title})
+        msg = "Rewrite the following podcast episode as just one complete single episode.\n"
         msg += "\n".join(texts)
-        msg, aud = chat.step(msg=msg, model='gpt-3.5-turbo-16k', ret_aud=True, frequency_penalty=0.75)
+        msg, aud = chat.step(msg=msg, model=DEFAULT_TEXTGEN_MODEL, ret_aud=True, frequency_penalty=0.75)
         if len(msg) < 500:
             raise ValueError(f"Returned msg too short. Suspecting an error. [{msg=}]")
         return msg, aud
@@ -138,7 +141,7 @@ class PDFEpisode(Episode):
 class ArxivEpisode(PDFEpisode):
     ArxivPart = collections.namedtuple('ArxivPart', 'title text')
 
-    def __init__(self, arxiv_id, model='gpt-3.5-turbo-16k', **kwargs):
+    def __init__(self, arxiv_id, model=DEFAULT_TEXTGEN_MODEL, **kwargs):
         self.arxiv_id = arxiv_id
         self.model = model
         self.data = self.process_pdf(self.arxiv_id)
@@ -146,7 +149,7 @@ class ArxivEpisode(PDFEpisode):
         self._kwargs = kwargs
         super().__init__(title=self.arxiv_title, topic=self.arxiv_title, **kwargs)
 
-    def split_into_parts(self, text, max_tokens=8_000):
+    def split_into_parts(self, text, max_tokens=MAX_TOKENS):
         """Split the text into parts based on tokens."""
         lines = text.split("\n")
         parts = []
@@ -156,9 +159,11 @@ class ArxivEpisode(PDFEpisode):
         while Chat.num_tokens_from_text('\n'.join(current_part)) > max_tokens:
             part_text = '\n'.join(current_part)
             shortened_part, current_part = part_text[:max_tokens * 2], [part_text[max_tokens * 2:]]
+            logger.info("PartAdd3")
             parts.append(self.ArxivPart(current_title, shortened_part))
 
         if current_part:
+            logger.info("PartAdd4")
             parts.append(self.ArxivPart(current_title, "\n".join(current_part)))
         return parts
 
@@ -195,7 +200,7 @@ class CommercialGenerator:
     def generate(self, company=None):
         if company is None:
             company = self.get_random_company()
-        chat = PodcastChat(f"Very short commercial for {company}", host_voices=[GttsTTS(GttsTTS.MAN), GttsTTS(GttsTTS.WOMAN)])
+        chat = PodcastChat(f"Very short commercial for {company}", host_voices=[OpenAITTS(OpenAITTS.MAN), OpenAITTS(OpenAITTS.WOMAN)])
         chat._history[-1] = {"role": "user", "content": f"Generate a very funny, weird, and short commercial for {company}, who is sponsoring the podcast."}
         return chat.step(frequency_penalty=1.2)
 
@@ -210,14 +215,17 @@ class ArxivRunner:
         """Retrieve top Arxiv entries based on category."""
         url = f'http://export.arxiv.org/api/query?search_query=cat:{self.category}&start={self.start}' \
               f'&max_results={self.limit}&sortBy=lastUpdatedDate&sortOrder=descending'
+        print(url)
         data = feedparser.parse(url)
+        # print(data)
+        # print(data.get('entries'))
         return [entry['id'].split('/')[-1] for entry in data['entries']]
 
 
 # +
 JINGLE_FILE_PATH = 'jazzstep.mp3'
-MODEL = 'gpt-3.5-turbo-16k'
-HOST_VOICES = [GttsTTS(GttsTTS.MAN), GttsTTS(GttsTTS.WOMAN)]
+MODEL = DEFAULT_TEXTGEN_MODEL
+HOST_VOICES = [OpenAITTS(OpenAITTS.MAN), OpenAITTS(OpenAITTS.WOMAN)]
 PODCAST_ARGS = ("ArxivPodcastGPT", "ArxivPodcastGPT.github.io", "podcasts/ComputerScience/Consolidated/podcast.xml")
 
 def create_large_episode(arxiv_category, limit=5):
@@ -229,9 +237,11 @@ def create_large_episode(arxiv_category, limit=5):
     audios, texts = [jingle_audio], []
     
     for arxiv_id in ArxivRunner(arxiv_category, limit=limit).get_top():
+        logger.info(f"Trying arxiv ID {arxiv_id} in {arxiv_category} with limit {limit}")
         try:
             arxiv_episode = ArxivEpisode(arxiv_id, model=MODEL, podcast_args=PODCAST_ARGS, host_voices=HOST_VOICES)
             outline, txt = arxiv_episode.step()
+            logger.info(f"Got outline: {outline}")
         except Exception as e:
             logger.exception(f"Error processing arxiv_id {arxiv_id}: {e}")
             continue
@@ -271,23 +281,24 @@ class AudioCompletedEpisode(Episode):
 # +
 arxiv_categories = ["AI", "CL", "CC", "CE", "CG", "GT", "CV", "CY", "CR", "DS", "DB", "DL", "DM", "DC", "ET", "FL", "GL", "GR", "AR", "HC", "IR", "IT", "LO", "LG", "MS", "MA", "MM", "NI", "NE", "NA", "OS", "OH", "PF", "PL", "RO", "SI", "SE", "SD", "SC", "SY"]
 
-def run(arxiv_category):
+def run(arxiv_category, upload=True, limit=5):
     # TODO: Multi thread each part
-    audios, texts = create_large_episode(arxiv_category)
+    audios, texts = create_large_episode(arxiv_category, limit=limit)
     ep = AudioCompletedEpisode(audios, podcast_args=PODCAST_ARGS)
-    ep.upload(f'{datetime.datetime.now():%Y-%m-%d} {arxiv_category}: {get_title(texts)}', '\n\n'.join(texts))
+    if upload:
+        ep.upload(f'{datetime.datetime.now():%Y-%m-%d} {arxiv_category}: {get_title(texts)}', '\n\n'.join(texts))
+    return ep
 
-
-# -
-
-"""TODO:
-
-"""
-pass
+# +
+# ep = run("cs.CG", upload=False, limit=1)
+# ep
 
 # +
 # a, b = CommercialGenerator().generate()
 # a
+
+# +
+# IPython.display.Audio(b''.join(ep.sounds))
 # -
 
 

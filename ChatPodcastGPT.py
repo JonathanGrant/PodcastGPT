@@ -6,11 +6,11 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.14.5
+#       jupytext_version: 1.15.0
 #   kernelspec:
-#     display_name: '3.11'
+#     display_name: Python 3 (ipykernel)
 #     language: python
-#     name: '3.11'
+#     name: python3
 # ---
 
 # %%
@@ -43,7 +43,8 @@ class ElevenLabsTTS:
     WOMAN = 'EXAVITQu4vr4xnSDxMaL'
     MAN = 'VR6AewLTigWG4xSOukaG'
     BRIT_WOMAN = 'jnBYJClnH7m3ddnEXkeh'
-    def __init__(self, api_key_fpath='/Users/jong/.elevenlabs_apikey', voice_id=None):
+    def __init__(self, voice_id=None):
+        api_key_fpath='/Users/jong/.elevenlabs_apikey'
         with open(api_key_fpath) as f:
             self.api_key = f.read().strip()
         self._voice_id = voice_id or self.WOMAN
@@ -71,19 +72,44 @@ class GttsTTS:
     @retrying.retry(stop_max_attempt_number=5, wait_fixed=2000)
     def tts(self, text):
         speech = gTTS(text=text, lang='en', tld=self.tld, slow=False)
-        with tempfile.NamedTemporaryFile(delete=True) as fp:
-            temp_filename = fp.name
+        with tempfile.TemporaryDirectory() as tmpdir:
+            temp_filename = f'{tmpdir}/audio'
             speech.save(temp_filename)
             with open(temp_filename, 'rb') as f:
-                audio_data = f.read()
-        return audio_data
+                return f.read()
 
 
 # %%
+class OpenAITTS:
+    """https://platform.openai.com/docs/guides/text-to-speech"""
+    WOMAN = 'nova'
+    MAN = 'echo'
+    def __init__(self, voice_id=None, model='tts-1'):
+        """Voices:
+        alloy, echo, fable, onyx, nova, and shimmer
+        Models:
+        tts-1, tts-1-hd
+        """
+        self.voice = voice_id
+        self.model = model
+
+    @retrying.retry(stop_max_attempt_number=5, wait_fixed=2000)
+    def tts(self, text):
+        response = openai.OpenAI(api_key=openai.api_key).audio.speech.create(
+          model=self.model,
+          voice=self.voice,
+          input=text
+        )
+        return response.content
+
+
+# %%
+DEFAULT_MODEL = 'gpt-3.5-turbo'
+
 class Chat:
     class Model(enum.Enum):
         GPT3_5 = "gpt-3.5-turbo"
-        GPT_4  = "gpt-4"
+        GPT_4  = "gpt-4-1106-preview"
 
     def __init__(self, system, max_length=4096//2):
         self._system = system
@@ -93,13 +119,13 @@ class Chat:
         ]
 
     @classmethod
-    def num_tokens_from_text(cls, text, model="gpt-3.5-turbo"):
+    def num_tokens_from_text(cls, text, model=DEFAULT_MODEL):
         """Returns the number of tokens used by some text."""
         encoding = tiktoken.encoding_for_model(model)
         return len(encoding.encode(text))
     
     @classmethod
-    def num_tokens_from_messages(cls, messages, model="gpt-3.5-turbo"):
+    def num_tokens_from_messages(cls, messages, model=DEFAULT_MODEL):
         """Returns the number of tokens used by a list of messages."""
         encoding = tiktoken.encoding_for_model(model)
         num_tokens = 0
@@ -113,8 +139,8 @@ class Chat:
         return num_tokens
 
     @retrying.retry(stop_max_attempt_number=5, wait_fixed=2000)
-    def _msg(self, *args, model=Model.GPT3_5.value, **kwargs):
-        return openai.ChatCompletion.create(
+    def _msg(self, *args, model=DEFAULT_MODEL, **kwargs):
+        return openai.OpenAI(api_key=openai.api_key).chat.completions.create(
             *args,
             model=model,
             messages=self._history,
@@ -137,7 +163,7 @@ class Chat:
 
 # %%
 class PodcastChat(Chat):
-    def __init__(self, topic, podcast="award winning", max_length=4096//2, hosts=['Tom', 'Jen'], host_voices=[GttsTTS(GttsTTS.MAN), GttsTTS(GttsTTS.WOMAN)]):
+    def __init__(self, topic, podcast="award winning", max_length=4096//2, hosts=['Tom', 'Jen'], host_voices=[OpenAITTS(OpenAITTS.MAN), OpenAITTS(OpenAITTS.WOMAN)]):
         system = f"You are an {podcast} podcast with hosts {hosts[0]} and {hosts[1]}."
         super().__init__(system, max_length=max_length)
         self._podcast = podcast
@@ -179,10 +205,7 @@ class PodcastChat(Chat):
                 jobs.append(thread_pool.submit(write_audio, currline, i, name2voice[currname], lang='en', tld=name2tld[currname]))
                 i+=1
             # Concat files
-            audios = [b''] * len(jobs)
-            for future in concurrent.futures.as_completed(jobs):
-                idx = jobs.index(future)
-                audios[idx] = future.result()
+            audios = [job.result() for job in jobs]
             logger.info('concatting audio')
             audio = b''.join(audios)
             logger.info('done with audio!')
@@ -294,7 +317,7 @@ class PodcastRSSFeed:
 
 # %%
 class Episode:
-    def __init__(self, episode_type='narration', podcast_args=("JonathanGrant", "jonathangrant.github.io", "podcasts/podcast.xml"), **chat_kwargs):
+    def __init__(self, episode_type='narration', podcast_args=("JonathanGrant", "jonathangrant.github.io", "podcasts/podcast.xml"), text_model=DEFAULT_MODEL, **chat_kwargs):
         """
         Kinds of episodes:
             pure narration - simple TTS
@@ -305,13 +328,19 @@ class Episode:
         self.chat = PodcastChat(**chat_kwargs)
         self.chat_kwargs = chat_kwargs
         self.pod = PodcastRSSFeed(*podcast_args)
+        self.text_model = text_model
         self.sounds = []
         self.texts = []
 
     def get_outline(self, n, topic=None):
         if topic is None: topic = self.chat._topic
-        chat = Chat(f"You are PodcastGPT. Generate chapters for a podcast topic. The podcast is {self.chat._podcast}")
-        resp = chat.message(f'Write the outline for a podcast about {topic} involving {n} parts. Just return the ordered list of parts and nothing else. Do not include a conclusion or intro.')
+        chat = Chat(f"""Write 
+a concise plaintext outline with exactly {n} parts for a podcast titled {self.chat._podcast}.
+Only return the parts and nothing else.
+Do not include a conclusion or intro.
+Do not write more than {n} parts.
+Format it like this: 1. insert-title-here... 2. another-title-here...""".replace("\n", " "))
+        resp = chat.message(model=self.text_model)
         chapter_pattern = re.compile(r'\d+\.\s+.*')
         chapters = chapter_pattern.findall(resp)
         if not chapters:
@@ -354,17 +383,14 @@ class Episode:
             self.pod.upload_episode(tmppath, f"podcasts/audio/{title_small}.mp3", title, descr)
 
 
-# %% jupyter={"outputs_hidden": true}
+# %%
 # # %%time
-# ep = Episode(episode_type='narration', topic="Logitechs 5 Year Plan to $10B in Revenue by Building Products in Computer Peripherals, Gaming, and Video Collaboration With AI")
-# outline, txt = ep.step(nparts=3)
-# ep.upload(ep.chat._topic, '\n'.join(outline))
-
-# %%
-
-# %%
-
-# %%
+# ep = Episode(
+#     episode_type='narration',
+#     topic="Adorable Animal Behaviours: Pigeons",
+# )
+# outline, txt = ep.step(nparts='three')
+# ep.upload("(3part 01) " + ep.chat._topic, '\n'.join(outline))
 
 # %%
 """
