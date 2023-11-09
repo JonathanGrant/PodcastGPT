@@ -353,18 +353,18 @@ Format it like this: 1. insert-title-here... 2. another-title-here...""".replace
         if self.episode_type == 'narration':
             outline = self.get_outline(msg, nparts)
             logger.info(f"Outline: {outline}")
-            intro_txt, intro_aud = self.chat.step(f"Write the intro for a podcast about {msg}. The outline for the podcast is {', '.join(outline)}. Only write the introduction.{include}")
+            intro_txt, intro_aud = self.chat.step(f"Write the intro for a podcast about {msg}. The outline for the podcast is {', '.join(outline)}. Only write the introduction.{include}", model=self.text_model)
             self.sounds.append(intro_aud)
             self.texts.append(intro_txt)
             # Get parts
             for part in outline:
                 logger.info(f"Part: {part}")
-                part_txt, part_aud = self.chat.step(f"Write the next part: {part}.{include}")
+                part_txt, part_aud = self.chat.step(f"Write the next part: {part}.{include}", model=self.text_model)
                 self.sounds.append(part_aud)
                 self.texts.append(part_txt)
             # Get conclusion
             logger.info("Conclusion")
-            part_txt, part_aud = self.chat.step(f"Write the conclusion. Remember, the outline was: {', '.join(outline)}.{include}")
+            part_txt, part_aud = self.chat.step(f"Write the conclusion. Remember, the outline was: {', '.join(outline)}.{include}", model=self.text_model)
             self.sounds.append(part_aud)
             self.texts.append(part_txt)
         elif self.episode_type == 'pure_tts':
@@ -387,10 +387,15 @@ Format it like this: 1. insert-title-here... 2. another-title-here...""".replace
 # # %%time
 # ep = Episode(
 #     episode_type='narration',
-#     topic="Adorable Animal Behaviours: Pigeons",
+#     topic="Debate: Should Logitech add voice related functionality to its lineup of mice and keyboards to work with ChatGPT?",
+#     max_length=120_000,
+#     text_model='gpt-4-1106-preview',
 # )
 # outline, txt = ep.step(nparts='three')
-# ep.upload("(3part 01) " + ep.chat._topic, '\n'.join(outline))
+# ep.upload("(New OpenAI APIs v1) " + ep.chat._topic[:100], '\n'.join(outline))
+
+# %%
+# ep.upload("(New OpenAI APIs v2) " + ep.chat._topic[:100], '\n'.join(outline))
 
 # %%
 """
