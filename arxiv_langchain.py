@@ -84,56 +84,31 @@ class PDFEpisode(Episode):
         text = self.parse_pdf(pdf_path)
         parts = self.split_into_parts(text)
         return parts
-    
-    def write_one_part(self, chat_msg):
-        chat = PodcastChat(**{**self._kwargs, 'topic': self.title})
-        msg = chat.step(msg=chat_msg, model=self.model, skip_aud=True, frequency_penalty=0.5)
-        return msg
 
     @retrying.retry(stop_max_attempt_number=3, wait_fixed=2000)
-    def concat_podcast_parts(self, texts):
-        """Given list of texts from chatGPT about the podcast."""
-        chat = PodcastChat(max_length=MAX_TOKENS, **{**self._kwargs, 'topic': self.title})
-        msg = "Rewrite the following podcast episode as just one complete single episode.\n"
-        msg += "\n".join(texts)
-        msg, aud = chat.step(msg=msg, model=DEFAULT_TEXTGEN_MODEL, ret_aud=True, frequency_penalty=0.75)
-        if len(msg) < 500:
-            raise ValueError(f"Returned msg too short. Suspecting an error. [{msg=}]")
+    def write_one_part(self, chat_msg):
+        chat = PodcastChat(**{**self._kwargs, 'topic': self.title})
+        msg, aud = chat.step(msg=chat_msg, model=self.model, ret_aud=True)
         return msg, aud
 
     def step(self):
-        include = f" Remember to respond with the hosts names like {self.chat._hosts[0]}: and {self.chat._hosts[1]}:"
+        include = f" Remember to respond with the hosts names before each line like {self.chat._hosts[0]}: and {self.chat._hosts[1]}:"
         outline = self.data[0].text
-        # logger.info(f"Outline: {outline}")
-        intro_msg = f"Write the intro for a podcast about a paper: {self.title}. The abstract for the paper is {outline}. Only write the introduction.{include}"
 
         # Get parts
         with concurrent.futures.ThreadPoolExecutor(max_workers=16) as tpe:
-            jobs = [tpe.submit(self.write_one_part, intro_msg)]
-            jobs.extend([
-                tpe.submit(self.write_one_part, f"Rewrite the text from the paper {self.title} part {part.title} into a podcast section. Explain everything other than the title as if the listener has no idea. Do not include any intro such as saying welcome back, just get right to it. The text in the paper is: {part.text}.{include}")
+            jobs = ([
+                tpe.submit(self.write_one_part, f"Explain the paper \"{self.title}\" as a podcast. Explain everything as if the listener has no idea.\nThe text in the paper is:\n{part.text}.{include}")
                 for part in self.data
             ])
             job2idx = {j:i for i, j in enumerate(jobs)}
-            self.texts  = [None] * len(jobs)
+            self.sounds, self.summary_texts = [None] * len(jobs), [None] * len(jobs)
             for i, job in enumerate(concurrent.futures.as_completed(jobs)):
                 logger.info(f"Part: {i} / {len(jobs)} = {100.0*i/len(jobs):,.5f}%")
                 jobid = job2idx[job]
-                text = job.result()
-                self.texts[jobid] = text
-
-            # Combine texts into one podcast and ask chatGPT to re-write it.
-            jobs = [
-                tpe.submit(self.concat_podcast_parts, self.texts[txt_i*self.join_num:(txt_i+1)*self.join_num])
-                for txt_i in range(0, len(self.texts), self.join_num)
-            ]
-            job2idx = {j:i for i, j in enumerate(jobs)}
-            self.sounds, self.summary_texts = [None] * len(jobs), [None] * len(jobs)
-            for i, job in enumerate(concurrent.futures.as_completed(jobs)):
-                logger.info(f"Join Part: {i} / {len(jobs)} = {100.0*i/len(jobs):,.5f}%")
-                jobid = job2idx[job]
                 text, aud = job.result()
-                self.sounds[jobid], self.summary_texts[jobid] = aud, text
+                self.summary_texts[jobid] = text
+                self.sounds[jobid] = aud
 
         return outline, '\n'.join(self.summary_texts)
 
@@ -163,7 +138,7 @@ class ArxivEpisode(PDFEpisode):
             parts.append(self.ArxivPart(current_title, shortened_part))
 
         if current_part:
-            logger.info("PartAdd4")
+            logger.info(f"PartAdd4, {len(parts)}")
             parts.append(self.ArxivPart(current_title, "\n".join(current_part)))
         return parts
 
@@ -202,7 +177,7 @@ class CommercialGenerator:
             company = self.get_random_company()
         chat = PodcastChat(f"Very short commercial for {company}", host_voices=[OpenAITTS(OpenAITTS.MAN), OpenAITTS(OpenAITTS.WOMAN)])
         chat._history[-1] = {"role": "user", "content": f"Generate a very funny, weird, and short commercial for {company}, who is sponsoring the podcast."}
-        return chat.step(frequency_penalty=1.2)
+        return chat.step(model=DEFAULT_TEXTGEN_MODEL)
 
 
 class ArxivRunner:
@@ -217,8 +192,6 @@ class ArxivRunner:
               f'&max_results={self.limit}&sortBy=lastUpdatedDate&sortOrder=descending'
         print(url)
         data = feedparser.parse(url)
-        # print(data)
-        # print(data.get('entries'))
         return [entry['id'].split('/')[-1] for entry in data['entries']]
 
 
@@ -290,7 +263,7 @@ def run(arxiv_category, upload=True, limit=5):
     return ep
 
 # +
-# ep = run("cs.CG", upload=False, limit=1)
+# ep = run("cs.AI", upload=False, limit=1)
 # ep
 
 # +
