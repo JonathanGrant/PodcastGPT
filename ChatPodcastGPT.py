@@ -164,13 +164,15 @@ class Chat:
 # %%
 class PodcastChat(Chat):
     def __init__(self, topic, podcast="award winning", max_length=4096//2, hosts=['Tom', 'Jen'], host_voices=[OpenAITTS(OpenAITTS.MAN), OpenAITTS(OpenAITTS.WOMAN)]):
-        system = f"You are an {podcast} podcast with hosts {hosts[0]} and {hosts[1]}."
+        system = f"""You are an {podcast} podcast with hosts {hosts[0]} and {hosts[1]}.
+Respond with the hosts names before each line like {hosts[0]}: and {hosts[1]}:""".replace("\n", " ")
         super().__init__(system, max_length=max_length)
         self._podcast = podcast
         self._topic = topic
         self._hosts = hosts
         self._history.append({
-            "role": "user", "content": f"Generate an informative and entertaining podcast episode about {topic}. Make sure to teach complex topics in an intuitive way."
+            "role": "user", "content": f"""Generate an informative and entertaining podcast episode about {topic}.
+Make sure to teach complex topics in an intuitive way.""".replace("\n", " ")
         })
         self._tts_h1, self._tts_h2 = host_voices
 

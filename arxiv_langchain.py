@@ -61,12 +61,6 @@ class PDFEpisode(Episode):
         current_part = []
         current_title = 'Paper'
         for line in lines:
-            # if re.match(r'\d+\s[A-Za-z]', line):
-            #     if current_part:
-            #         parts.append(self.PDFPart(current_title, "\n".join(current_part)))
-            #     current_title = line
-            #     current_part = []
-            # else:
             current_part.append(line)
 
             while Chat.num_tokens_from_text('\n'.join(current_part)) > max_tokens:
@@ -92,13 +86,17 @@ class PDFEpisode(Episode):
         return msg, aud
 
     def step(self):
-        include = f" Remember to respond with the hosts names before each line like {self.chat._hosts[0]}: and {self.chat._hosts[1]}:"
         outline = self.data[0].text
 
         # Get parts
         with concurrent.futures.ThreadPoolExecutor(max_workers=16) as tpe:
             jobs = ([
-                tpe.submit(self.write_one_part, f"Explain the paper \"{self.title}\" as a podcast. Explain everything as if the listener has no idea.\nThe text in the paper is:\n{part.text}.{include}")
+                tpe.submit(self.write_one_part, f"""Explain the paper \"{self.title}\" in depth.
+Explain everything as if the listener has no idea.
+Respond with the hosts names before each line like {self.chat._hosts[0]}: and {self.chat._hosts[1]}:
+The text in the paper is:
+{part.text}
+""")
                 for part in self.data
             ])
             job2idx = {j:i for i, j in enumerate(jobs)}
@@ -263,7 +261,7 @@ def run(arxiv_category, upload=True, limit=5):
     return ep
 
 # +
-# ep = run("cs.AI", upload=False, limit=1)
+# ep = run("cs.CY", upload=False, limit=1)
 # ep
 
 # +
