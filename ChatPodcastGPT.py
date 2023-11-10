@@ -84,7 +84,7 @@ class OpenAITTS:
     """https://platform.openai.com/docs/guides/text-to-speech"""
     WOMAN = 'nova'
     MAN = 'echo'
-    def __init__(self, voice_id=None, model='tts-1'):
+    def __init__(self, voice_id=None, model='tts-1-hd'):
         """Voices:
         alloy, echo, fable, onyx, nova, and shimmer
         Models:
@@ -389,12 +389,12 @@ Format it like this: 1. insert-title-here... 2. another-title-here...""".replace
 # # %%time
 # ep = Episode(
 #     episode_type='narration',
-#     topic="Debate: Should Logitech add voice related functionality to its lineup of mice and keyboards to work with ChatGPT?",
+#     topic="From Treetops to Ice Flops: The Curious Lives of Giraffes, Penguins, and Squirrels",
 #     max_length=120_000,
 #     text_model='gpt-4-1106-preview',
 # )
-# outline, txt = ep.step(nparts='three')
-# ep.upload("(New OpenAI APIs v1) " + ep.chat._topic[:100], '\n'.join(outline))
+# outline, txt = ep.step(nparts='6')
+# ep.upload("(New OpenAI APIs v1) " + ep.chat._topic[:200], '\n'.join(outline))
 
 # %%
 # ep.upload("(New OpenAI APIs v2) " + ep.chat._topic[:100], '\n'.join(outline))
