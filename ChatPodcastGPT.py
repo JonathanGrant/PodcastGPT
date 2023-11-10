@@ -19,7 +19,7 @@ import tiktoken
 import tempfile
 import IPython
 import enum
-import structlog
+import jonlog
 from gtts import gTTS
 import uuid
 import datetime as dt
@@ -27,6 +27,8 @@ import requests
 import concurrent.futures
 import base64
 from github import Github
+import time
+import threading
 import os
 import re
 import retrying
@@ -34,8 +36,36 @@ from xml.dom import minidom
 from xml.etree import ElementTree as ET
 import requests
 from bs4 import BeautifulSoup
-logger = structlog.getLogger()
+logger = jonlog.getLogger()
 openai.api_key = os.environ.get("OPENAI_KEY", None) or open('/Users/jong/.openai_key').read().strip()
+
+
+# %%
+class RateLimited:
+    def __init__(self, max_per_minute):
+        self.max_per_minute = max_per_minute
+        self.current_minute = time.strftime('%M')
+        self.lock = threading.Lock()
+        self.calls = 0
+
+    def __call__(self, fn):
+        def wrapper(*args, **kwargs):
+            run = False
+            with self.lock:
+                current_minute = time.strftime('%M')
+                if current_minute != self.current_minute:
+                    self.current_minute = current_minute
+                    self.calls = 0
+                if self.calls < self.max_per_minute:
+                    self.calls += 1
+                    run = True
+            if run:
+                return fn(*args, **kwargs)
+            else:
+                time.sleep(15)
+                return wrapper(*args, **kwargs)
+                    
+        return wrapper
 
 
 # %%
@@ -84,7 +114,7 @@ class OpenAITTS:
     """https://platform.openai.com/docs/guides/text-to-speech"""
     WOMAN = 'nova'
     MAN = 'echo'
-    def __init__(self, voice_id=None, model='tts-1-hd'):
+    def __init__(self, voice_id=None, model='tts-1'):
         """Voices:
         alloy, echo, fable, onyx, nova, and shimmer
         Models:
@@ -93,7 +123,8 @@ class OpenAITTS:
         self.voice = voice_id
         self.model = model
 
-    @retrying.retry(stop_max_attempt_number=5, wait_fixed=2000)
+    @RateLimited(95)
+    @jonlog.retry_with_logging()
     def tts(self, text):
         response = openai.OpenAI(api_key=openai.api_key).audio.speech.create(
           model=self.model,
@@ -104,14 +135,15 @@ class OpenAITTS:
 
 
 # %%
-DEFAULT_MODEL = 'gpt-3.5-turbo'
+DEFAULT_MODEL = 'gpt-4-1106-preview'
+DEFAULT_LENGTH  = 120_000
 
 class Chat:
     class Model(enum.Enum):
         GPT3_5 = "gpt-3.5-turbo"
         GPT_4  = "gpt-4-1106-preview"
 
-    def __init__(self, system, max_length=4096//2):
+    def __init__(self, system, max_length=DEFAULT_LENGTH):
         self._system = system
         self._max_length = max_length
         self._history = [
@@ -163,7 +195,7 @@ class Chat:
 
 # %%
 class PodcastChat(Chat):
-    def __init__(self, topic, podcast="award winning", max_length=4096//2, hosts=['Tom', 'Jen'], host_voices=[OpenAITTS(OpenAITTS.MAN), OpenAITTS(OpenAITTS.WOMAN)]):
+    def __init__(self, topic, podcast="award winning", max_length=DEFAULT_LENGTH, hosts=['Tom', 'Jen'], host_voices=[OpenAITTS(OpenAITTS.MAN), OpenAITTS(OpenAITTS.WOMAN)]):
         system = f"""You are an {podcast} podcast with hosts {hosts[0]} and {hosts[1]}.
 Respond with the hosts names before each line like {hosts[0]}: and {hosts[1]}:""".replace("\n", " ")
         super().__init__(system, max_length=max_length)
@@ -384,12 +416,11 @@ Format it like this: 1. insert-title-here... 2. another-title-here...""".replace
                 f.write(b''.join(self.sounds))
             self.pod.upload_episode(tmppath, f"podcasts/audio/{title_small}.mp3", title, descr)
 
-
 # %%
 # # %%time
 # ep = Episode(
 #     episode_type='narration',
-#     topic="From Treetops to Ice Flops: The Curious Lives of Giraffes, Penguins, and Squirrels",
+#     topic="PSU Stats 501 Lesson 6: MLR Estimation, Prediction & Model Assumptions",
 #     max_length=120_000,
 #     text_model='gpt-4-1106-preview',
 # )
@@ -398,18 +429,5 @@ Format it like this: 1. insert-title-here... 2. another-title-here...""".replace
 
 # %%
 # ep.upload("(New OpenAI APIs v2) " + ep.chat._topic[:100], '\n'.join(outline))
-
-# %%
-"""
-TODO:
-    - runtime voice choosing to include accented voices
-"""
-
-# %%
-"""
-TODO:
-    Make web server and send mp3 to frontend
-    Make frontend and play results
-"""
 
 # %%
