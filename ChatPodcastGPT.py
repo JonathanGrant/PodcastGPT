@@ -420,14 +420,11 @@ Format it like this: 1. insert-title-here... 2. another-title-here...""".replace
 # # %%time
 # ep = Episode(
 #     episode_type='narration',
-#     topic="PSU Stats 501 Lesson 6: MLR Estimation, Prediction & Model Assumptions",
+#     topic="Hidden History: Unraveling 7 of History's Mysteries - From the Great Emu War to the Green Children of Woolpit",
 #     max_length=120_000,
 #     text_model='gpt-4-1106-preview',
 # )
-# outline, txt = ep.step(nparts='6')
+# outline, txt = ep.step(nparts='7')
 # ep.upload("(New OpenAI APIs v1) " + ep.chat._topic[:200], '\n'.join(outline))
-
-# %%
-# ep.upload("(New OpenAI APIs v2) " + ep.chat._topic[:100], '\n'.join(outline))
 
 # %%

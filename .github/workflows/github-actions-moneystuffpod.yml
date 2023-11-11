@@ -1,0 +1,27 @@
+name: Run Arxiv Script
+on:
+  schedule:
+    - cron: '6 21 * * *' # This schedules the action to run every day at 9pm UTC which is 4am EDT
+  workflow_dispatch: # This allows manual triggering
+jobs:
+  run-scripts:
+    name: Run moneystuff script
+    runs-on: ubuntu-latest
+    env:
+      OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
+      GH_KEY: ${{ secrets.GH_KEY }}
+    steps:
+      # Step 1: Checkout the repository
+      - name: Checkout code
+        uses: actions/checkout@v2
+      # Step 2: Setup Python
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.11.x'
+      # Step 3: Install dependencies if any (uncomment if needed)
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      # Step 4: Run the Python script
+      - name: Run mstuff
+        run: python -c 'from MoneyStuff import run; run()'
