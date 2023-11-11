@@ -1,4 +1,4 @@
-name: Run Arxiv Script
+name: Run MStuff
 on:
   schedule:
     - cron: '6 21 * * *' # This schedules the action to run every day at 9pm UTC which is 4am EDT
