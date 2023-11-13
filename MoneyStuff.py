@@ -40,20 +40,10 @@ class MoneyStuff:
             date_text = article.find('time').get_text(strip=True) if article.find('time') else None
             link = article.find('a', href=True)
         
-            if title and date_text and link:
-                # Extracting the number of days from the text
-                days_ago_match = re.search(r'(\d+) days ago', date_text)
-                if days_ago_match:
-                    days_ago = int(days_ago_match.group(1))
-                    publish_date = now - datetime.timedelta(days=days_ago)
-                else:
-                    logger.warning(f"Cannot extract date: {date_text}")
-                    continue
-        
+            if title and date_text and link and 'hours ago' in date_text.lower():
                 articles.append({
                     'title': title.get_text(strip=True),
-                    'publish_datetime': publish_date.isoformat(),
-                    'link': link['href']
+                    'link': link['href'],
                 })
         return articles
 
@@ -73,9 +63,6 @@ def run(ndays=1):
     articles = MoneyStuff().list()
     now = datetime.datetime.now()
     for article in articles:
-        art_date = datetime.datetime.strptime(article['publish_datetime'][:10], '%Y-%m-%d')
-        if (now - art_date).days > ndays:
-            continue
         logger.info(f"Writing {article}")
         lines = MoneyStuff().get(article)
         ep = Episode(
