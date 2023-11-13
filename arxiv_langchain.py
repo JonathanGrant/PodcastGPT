@@ -138,6 +138,8 @@ class ArxivEpisode(PDFEpisode):
         if current_part:
             logger.info(f"PartAdd4, {len(parts)}")
             parts.append(self.ArxivPart(current_title, "\n".join(current_part)))
+        if len(parts) > 1:
+            raise Exception("More than 1 part, giving up")
         return parts
 
     def process_pdf(self, arxiv_id):
@@ -186,11 +188,28 @@ class ArxivRunner:
 
     def get_top(self):
         """Retrieve top Arxiv entries based on category."""
-        url = f'http://export.arxiv.org/api/query?search_query=cat:{self.category}&start={self.start}' \
-              f'&max_results={self.limit}&sortBy=lastUpdatedDate&sortOrder=descending'
+        # url = f'http://export.arxiv.org/api/query?search_query=cat:{self.category}&start={self.start}' \
+        #       f'&max_results={self.limit}&sortBy=submittedDate&sortOrder=descending'
+        url = f'https://arxiv.org/list/{self.category}/recent'
         print(url)
-        data = feedparser.parse(url)
-        return [entry['id'].split('/')[-1] for entry in data['entries']]
+        html = requests.get(url).content
+        soup = BeautifulSoup(html, 'html.parser')
+        articles = []
+        
+        for item in soup.find_all('dt')[:self.limit]:
+            title = item.find_next_sibling('dd').find('div', class_='list-title').text.replace('Title:', '').strip()
+            identifier = item.find('span', class_='list-identifier').a.text
+            pdf_link = 'https://arxiv.org' + item.find('span', class_='list-identifier').find('a', title='Download PDF')['href']
+        
+            articles.append({
+                'title': title,
+                'ID': identifier,
+                'pdf': pdf_link
+            })
+        return [a["pdf"].split('/')[-1] for a in articles]
+        
+        # data = feedparser.parse(url)
+        # return [entry['id'].split('/')[-1] for entry in data['entries']]
 
 
 # +
@@ -261,12 +280,11 @@ def run(arxiv_category, upload=True, limit=5):
     return ep
 
 # +
-# ep = run("cs.CY", upload=False, limit=1)
+# ep = run("econ", upload=False, limit=5)
 # ep
 
 # +
-# a, b = CommercialGenerator().generate()
-# a
+# ep.upload(f'{datetime.datetime.now():%Y-%m-%d} econ: {get_title(texts)}', '\n\n'.join(texts))
 
 # +
 # IPython.display.Audio(b''.join(ep.sounds))
