@@ -91,7 +91,7 @@ class PDFEpisode(Episode):
         # Get parts
         with concurrent.futures.ThreadPoolExecutor(max_workers=16) as tpe:
             jobs = ([
-                tpe.submit(self.write_one_part, f"""Explain the paper \"{self.title}\" in full detail.
+                tpe.submit(self.write_one_part, f"""Explain the paper \"{self.title}\" in full verbose detail.
 Assume the listener doesn't know anything.
 Follow this guide:
 
@@ -254,7 +254,7 @@ def create_large_episode(arxiv_category, limit=5):
         try:
             arxiv_episode = ArxivEpisode(arxiv_id, model=MODEL, podcast_args=PODCAST_ARGS, host_voices=HOST_VOICES)
             outline, txt = arxiv_episode.step()
-            logger.info(f"Got outline: {outline}")
+            logger.info(f"Got outline: {outline[:500]}")
         except Exception as e:
             logger.exception(f"Error processing arxiv_id {arxiv_id}: {e}")
             continue
@@ -308,7 +308,7 @@ def run(arxiv_category, upload=True, limit=5):
 # IPython.display.Audio(b''.join(ep.sounds))
 
 # +
-# ep.upload(f'{datetime.datetime.now():%Y-%m-%d} econ: {get_title(texts)}', '\n\n'.join(texts))
+# ep.upload(f'{datetime.datetime.now():%Y-%m-%d} astro-ph', '\n\n'.join(texts))
 
 # +
 # IPython.display.Audio(b''.join(ep.sounds))
