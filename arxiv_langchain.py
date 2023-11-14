@@ -29,7 +29,7 @@ import random
 from IPython.display import Audio
 import datetime
 
-MAX_TOKENS = 120_000 # GPT4-128k
+MAX_TOKENS = 60_000 # GPT4-128k
 JOIN_NUM_DEFAULT = 300
 DEFAULT_TEXTGEN_MODEL = 'gpt-4-1106-preview'
 
@@ -196,7 +196,7 @@ class ArxivRunner:
         soup = BeautifulSoup(html, 'html.parser')
         articles = []
         
-        for item in soup.find_all('dt')[:self.limit]:
+        for item in soup.find_all('dt'):
             title = item.find_next_sibling('dd').find('div', class_='list-title').text.replace('Title:', '').strip()
             identifier = item.find('span', class_='list-identifier').a.text
             pdf_link = 'https://arxiv.org' + item.find('span', class_='list-identifier').find('a', title='Download PDF')['href']
@@ -225,9 +225,13 @@ def create_large_episode(arxiv_category, limit=5):
     jingle_audio = jingle_audio[:len(jingle_audio) // 4]  # Shorten to just 4 sec
 
     audios, texts = [jingle_audio], []
+    successes = 0
     
     for arxiv_id in ArxivRunner(arxiv_category, limit=limit).get_top():
-        logger.info(f"Trying arxiv ID {arxiv_id} in {arxiv_category} with limit {limit}")
+        if successes >= limit:
+            break
+
+        logger.info(f"Trying arxiv ID {arxiv_id} in {arxiv_category} with {successes}/{limit}")
         try:
             arxiv_episode = ArxivEpisode(arxiv_id, model=MODEL, podcast_args=PODCAST_ARGS, host_voices=HOST_VOICES)
             outline, txt = arxiv_episode.step()
@@ -240,6 +244,7 @@ def create_large_episode(arxiv_category, limit=5):
         audios.append(jingle_audio)
         arxiv_title = re.sub('[^0-9a-zA-Z]+', ' ', arxiv_episode.arxiv_title)
         texts.append(f'ChatGPT generated podcast using model={MODEL} for https://arxiv.org/abs/{arxiv_id} {arxiv_title}')
+        successes += 1
         
         try:
             commercial_text, commercial_sound = CommercialGenerator().generate()
