@@ -34,8 +34,8 @@ jobs:
       - name: Run arxiv script for econ
         run: python -c 'from arxiv_langchain import run; run("econ")' || echo fail
 
-      - name: Run arxiv script for stat
-        run: python -c 'from arxiv_langchain import run; run("stat")' || echo fail
+      - name: Run arxiv script for astro-ph
+        run: python -c 'from arxiv_langchain import run; run("astro-ph")' || echo fail
 
       - name: Run arxiv script for q-fin
         run: python -c 'from arxiv_langchain import run; run("q-fin")' || echo fail
