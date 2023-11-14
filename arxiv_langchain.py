@@ -91,8 +91,27 @@ class PDFEpisode(Episode):
         # Get parts
         with concurrent.futures.ThreadPoolExecutor(max_workers=16) as tpe:
             jobs = ([
-                tpe.submit(self.write_one_part, f"""Explain the paper \"{self.title}\" in depth.
-Explain everything as if the listener has no idea.
+                tpe.submit(self.write_one_part, f"""Explain the paper \"{self.title}\" in full detail.
+Assume the listener doesn't know anything.
+Follow this guide:
+
+Introduction (500+ words)
+Contextual background: Why this paper is significant in its field.
+Key Concepts and Background: Explanation of the main scientific concepts or theories addressed in the paper.
+(Optional) Breakdown of complex vocabulary used.
+
+Core (2500+ words)
+Detailed discussion of the research paper’s objectives.
+Methodology and techniques used.
+Key findings and results.
+
+Implications and Applications (500+ words)
+Analysis of the potential impact of these findings on the field.
+
+Conclusion (500+ words)
+Recap of the main points discussed in the episode.
+Personal reflections on the paper and its broader relevance.
+
 Respond with the hosts names before each line like {self.chat._hosts[0]}: and {self.chat._hosts[1]}:
 The text in the paper is:
 {part.text}
@@ -285,8 +304,8 @@ def run(arxiv_category, upload=True, limit=5):
     return ep
 
 # +
-# ep = run("econ", upload=False, limit=5)
-# ep
+# ep = run("astro-ph", upload=False, limit=5)
+# IPython.display.Audio(b''.join(ep.sounds))
 
 # +
 # ep.upload(f'{datetime.datetime.now():%Y-%m-%d} econ: {get_title(texts)}', '\n\n'.join(texts))

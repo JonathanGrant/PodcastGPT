@@ -203,7 +203,7 @@ Respond with the hosts names before each line like {hosts[0]}: and {hosts[1]}:""
         self._topic = topic
         self._hosts = hosts
         self._history.append({
-            "role": "user", "content": f"""Generate an informative and entertaining podcast episode about {topic}.
+            "role": "user", "content": f"""Generate an informative, entertaining, and very detailed podcast episode about {topic}.
 Make sure to teach complex topics in an intuitive way.""".replace("\n", " ")
         })
         self._tts_h1, self._tts_h2 = host_voices
