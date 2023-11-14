@@ -91,7 +91,7 @@ class PDFEpisode(Episode):
         # Get parts
         with concurrent.futures.ThreadPoolExecutor(max_workers=16) as tpe:
             jobs = ([
-                tpe.submit(self.write_one_part, f"""Explain the paper \"{self.title}\" in full verbose detail.
+                tpe.submit(self.write_one_part, f"""Explain the paper \"{self.title}\" completely, in full verbose detail.
 Assume the listener doesn't know anything.
 Follow this guide:
 
