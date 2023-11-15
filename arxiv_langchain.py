@@ -112,6 +112,8 @@ Conclusion (500+ words)
 Recap of the main points discussed in the episode.
 Personal reflections on the paper and its broader relevance.
 
+You are doing this entire thing in one long message.
+I will not prompt you again.
 Respond with the hosts names before each line like {self.chat._hosts[0]}: and {self.chat._hosts[1]}:
 The text in the paper is:
 {part.text}
