@@ -89,7 +89,7 @@ class PDFEpisode(Episode):
         msg, aud = chat.step(msg=chat_msg, model=self.model, ret_aud=True)
         com_msg, com_aud = chat.step(msg="Generate a funny, weird, and concise commercial for a company that now exists as a result of this paper.", model=self.model, ret_aud=True)
         msg = '\n'.join([msg, com_msg])
-        aud = b''.join([aud, JINGLE_AUDIO, com_msg])
+        aud = b''.join([aud, JINGLE_AUDIO, com_aud])
         return msg, aud
 
     def step(self):
@@ -119,8 +119,6 @@ Conclusion (500+ words)
 Recap of the main points discussed in the episode.
 Personal reflections on the paper and its broader relevance.
 
-You are doing this entire thing in one long message.
-I will not prompt you again.
 Respond with the hosts names before each line like {self.chat._hosts[0]}: and {self.chat._hosts[1]}:
 The text in the paper is:
 {part.text}
@@ -268,6 +266,7 @@ def create_large_episode(arxiv_category, limit=5, add_commercials=False):
         arxiv_title = re.sub('[^0-9a-zA-Z]+', ' ', arxiv_episode.arxiv_title)
         texts.append(f'ChatGPT generated podcast using model={MODEL} for https://arxiv.org/abs/{arxiv_id} {arxiv_title}')
         successes += 1
+        logger.info(texts[-1])
 
         if not add_commercials:
             continue
@@ -302,7 +301,6 @@ class AudioCompletedEpisode(Episode):
 arxiv_categories = ["AI", "CL", "CC", "CE", "CG", "GT", "CV", "CY", "CR", "DS", "DB", "DL", "DM", "DC", "ET", "FL", "GL", "GR", "AR", "HC", "IR", "IT", "LO", "LG", "MS", "MA", "MM", "NI", "NE", "NA", "OS", "OH", "PF", "PL", "RO", "SI", "SE", "SD", "SC", "SY"]
 
 def run(arxiv_category, upload=True, limit=5):
-    # TODO: Multi thread each part
     audios, texts = create_large_episode(arxiv_category, limit=limit)
     ep = AudioCompletedEpisode(audios, podcast_args=PODCAST_ARGS)
     if upload:
@@ -310,7 +308,7 @@ def run(arxiv_category, upload=True, limit=5):
     return ep
 
 # +
-# ep = run("astro-ph", upload=False, limit=1)
+# ep = run("cs.IR", upload=False, limit=1)
 # IPython.display.Audio(b''.join(ep.sounds))
 
 # +
