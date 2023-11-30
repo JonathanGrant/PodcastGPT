@@ -5,7 +5,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.15.0
+#       jupytext_version: 1.15.2
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -32,6 +32,10 @@ import datetime
 MAX_TOKENS = 60_000 # GPT4-128k
 JOIN_NUM_DEFAULT = 300
 DEFAULT_TEXTGEN_MODEL = 'gpt-4-1106-preview'
+JINGLE_FILE_PATH = 'jazzstep.mp3'
+with open(JINGLE_FILE_PATH, 'rb') as jingle_file:
+    JINGLE_AUDIO = jingle_file.read()
+JINGLE_AUDIO = JINGLE_AUDIO[:len(JINGLE_AUDIO) // 4]  # Shorten to just 4 sec
 
 
 # -
@@ -80,9 +84,12 @@ class PDFEpisode(Episode):
         return parts
 
     @retrying.retry(stop_max_attempt_number=3, wait_fixed=2000)
-    def write_one_part(self, chat_msg):
+    def write_one_part(self, chat_msg, with_commercial=False):
         chat = PodcastChat(**{**self._kwargs, 'topic': self.title})
         msg, aud = chat.step(msg=chat_msg, model=self.model, ret_aud=True)
+        com_msg, com_aud = chat.step(msg="Generate a funny, weird, and concise commercial for a company that now exists as a result of this paper.", model=self.model, ret_aud=True)
+        msg = '\n'.join([msg, com_msg])
+        aud = b''.join([aud, JINGLE_AUDIO, com_msg])
         return msg, aud
 
     def step(self):
@@ -117,7 +124,7 @@ I will not prompt you again.
 Respond with the hosts names before each line like {self.chat._hosts[0]}: and {self.chat._hosts[1]}:
 The text in the paper is:
 {part.text}
-""")
+""", with_commercial=True)
                 for part in self.data
             ])
             job2idx = {j:i for i, j in enumerate(jobs)}
@@ -234,18 +241,13 @@ class ArxivRunner:
 
 
 # +
-JINGLE_FILE_PATH = 'jazzstep.mp3'
 MODEL = DEFAULT_TEXTGEN_MODEL
 HOST_VOICES = [OpenAITTS(OpenAITTS.MAN), OpenAITTS(OpenAITTS.WOMAN)]
 PODCAST_ARGS = ("ArxivPodcastGPT", "ArxivPodcastGPT.github.io", "podcasts/ComputerScience/Consolidated/podcast.xml")
 
-def create_large_episode(arxiv_category, limit=5):
+def create_large_episode(arxiv_category, limit=5, add_commercials=False):
     """Create a podcast episode with Arxiv papers."""
-    with open(JINGLE_FILE_PATH, 'rb') as jingle_file:
-        jingle_audio = jingle_file.read()
-    jingle_audio = jingle_audio[:len(jingle_audio) // 4]  # Shorten to just 4 sec
-
-    audios, texts = [jingle_audio], []
+    audios, texts = [JINGLE_AUDIO], []
     successes = 0
     
     for arxiv_id in ArxivRunner(arxiv_category, limit=limit).get_top():
@@ -262,15 +264,17 @@ def create_large_episode(arxiv_category, limit=5):
             continue
 
         audios.append(b''.join(arxiv_episode.sounds))
-        audios.append(jingle_audio)
+        audios.append(JINGLE_AUDIO)
         arxiv_title = re.sub('[^0-9a-zA-Z]+', ' ', arxiv_episode.arxiv_title)
         texts.append(f'ChatGPT generated podcast using model={MODEL} for https://arxiv.org/abs/{arxiv_id} {arxiv_title}')
         successes += 1
-        
+
+        if not add_commercials:
+            continue
         try:
             commercial_text, commercial_sound = CommercialGenerator().generate()
             audios.append(commercial_sound)
-            audios.append(jingle_audio)
+            audios.append(JINGLE_AUDIO)
         except Exception as e:
             logger.error("Unable to generate commercial")
             logger.exception(e)
@@ -306,7 +310,7 @@ def run(arxiv_category, upload=True, limit=5):
     return ep
 
 # +
-# ep = run("astro-ph", upload=False, limit=5)
+# ep = run("astro-ph", upload=False, limit=1)
 # IPython.display.Audio(b''.join(ep.sounds))
 
 # +
