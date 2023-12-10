@@ -28,11 +28,8 @@ jobs:
         run: python -c 'from arxiv_langchain import run; run("cs")' || echo fail
 
       # Repeat Step 4 for other categories
-      - name: Run arxiv script for q-bio
-        run: python -c 'from arxiv_langchain import run; run("q-bio")' || echo fail
-
-      - name: Run arxiv script for physics
-        run: python -c 'from arxiv_langchain import run; run("physics")' || echo fail
+      - name: Run arxiv script for psyarxiv
+        run: python -c 'from arxiv_langchain import run; run("psyarxiv")' || echo fail
 
       - name: Run arxiv script for q-fin
         run: python -c 'from arxiv_langchain import run; run("q-fin")' || echo fail

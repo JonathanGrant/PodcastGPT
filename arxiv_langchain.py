@@ -87,6 +87,7 @@ class PDFEpisode(Episode):
     def write_one_part(self, chat_msg, with_commercial=False):
         chat = PodcastChat(**{**self._kwargs, 'topic': self.title})
         msg, aud = chat.step(msg=chat_msg, model=self.model, ret_aud=True)
+        chat._history.pop(1)
         com_msg, com_aud = chat.step(msg="Generate a funny, weird, and concise commercial for a company that now exists as a result of this paper.", model=self.model, ret_aud=True)
         msg = '\n'.join([msg, com_msg])
         aud = b''.join([aud, JINGLE_AUDIO, com_aud])
@@ -140,8 +141,10 @@ The text in the paper is:
 class ArxivEpisode(PDFEpisode):
     ArxivPart = collections.namedtuple('ArxivPart', 'title text')
 
-    def __init__(self, arxiv_id, model=DEFAULT_TEXTGEN_MODEL, **kwargs):
+    def __init__(self, arxiv_id, id_is_url=False, title=None, model=DEFAULT_TEXTGEN_MODEL, **kwargs):
         self.arxiv_id = arxiv_id
+        self.id_is_url = id_is_url
+        self.title = title
         self.model = model
         self.data = self.process_pdf(self.arxiv_id)
         self.title = self.arxiv_title = self.get_title(self.arxiv_id)
@@ -177,12 +180,17 @@ class ArxivEpisode(PDFEpisode):
         return parts
     
     def arxiv_download(self, arxiv_id, out_file):
-        url = f"https://arxiv.org/pdf/{arxiv_id}.pdf"
+        if self.id_is_url:
+            url = arxiv_id
+        else:
+            url = f"https://arxiv.org/pdf/{arxiv_id}.pdf"
         response = requests.get(url)
         with open(out_file, "wb") as f:
             f.write(response.content)
-    
+
     def get_title(self, arxiv_id):
+        if self.title is not None:
+            return self.title
         url = f"https://arxiv.org/abs/{arxiv_id}"
         response = requests.get(url)
         soup = BeautifulSoup(response.text, 'html.parser')
@@ -214,8 +222,7 @@ class ArxivRunner:
 
     def get_top(self):
         """Retrieve top Arxiv entries based on category."""
-        # url = f'http://export.arxiv.org/api/query?search_query=cat:{self.category}&start={self.start}' \
-        #       f'&max_results={self.limit}&sortBy=submittedDate&sortOrder=descending'
+        if self.category == 'psyarxiv': return self.get_top_psyarxiv()
         url = f'https://arxiv.org/list/{self.category}/recent'
         print(url)
         html = requests.get(url).content
@@ -233,9 +240,13 @@ class ArxivRunner:
                 'pdf': pdf_link
             })
         return [a["pdf"].split('/')[-1] for a in articles]
-        
-        # data = feedparser.parse(url)
-        # return [entry['id'].split('/')[-1] for entry in data['entries']]
+
+    def get_top_psyarxiv(self):
+        url = 'https://share.osf.io/api/v3/index-card-search?cardSearchFilter%5BresourceType%5D=Preprint&cardSearchFilter%5Bpublisher%5D%5B%5D=https%3A%2F%2Fosf.io%2Fpreprints%2Fpsyarxiv&cardSearchFilter%5BaccessService%5D=https%3A%2F%2Fosf.io%2F&cardSearchText%5B*%2Ccreator.name%2CisContainedBy.creator.name%5D=&page%5Bcursor%5D=&page%5Bsize%5D=10&sort=-dateCreated'
+        print(url)
+        data = requests.get(url, headers={'Accept': 'application/vnd.api+json'}).json()
+        data = [x for x in data['included'] if x["type"] == "index-card"]
+        return [(f"{x['attributes']['resourceIdentifier'][0]}/download/", x['attributes']['resourceMetadata']['title'][0]['@value']) for x in data]
 
 
 # +
@@ -252,9 +263,15 @@ def create_large_episode(arxiv_category, limit=5, add_commercials=False):
         if successes >= limit:
             break
 
+        arxiv_kwargs = {'id_is_url': False}
+        if isinstance(arxiv_id, tuple):
+            arxiv_id, arxiv_title = arxiv_id
+            arxiv_kwargs['title'] = arxiv_title
+            arxiv_kwargs['id_is_url'] = True
+            
         logger.info(f"Trying arxiv ID {arxiv_id} in {arxiv_category} with {successes}/{limit}")
         try:
-            arxiv_episode = ArxivEpisode(arxiv_id, model=MODEL, podcast_args=PODCAST_ARGS, host_voices=HOST_VOICES)
+            arxiv_episode = ArxivEpisode(arxiv_id, model=MODEL, podcast_args=PODCAST_ARGS, host_voices=HOST_VOICES, **arxiv_kwargs)
             outline, txt = arxiv_episode.step()
             logger.info(f"Got outline: {outline[:500]}")
         except Exception as e:
@@ -307,8 +324,9 @@ def run(arxiv_category, upload=True, limit=5):
         ep.upload(f'{datetime.datetime.now():%Y-%m-%d} {arxiv_category}: {get_title(texts)}', '\n\n'.join(texts))
     return ep
 
+
 # +
-# ep = run("cs.IR", upload=False, limit=1)
+# ep = run("psyarxiv", upload=True, limit=5)
 # IPython.display.Audio(b''.join(ep.sounds))
 
 # +
@@ -317,5 +335,7 @@ def run(arxiv_category, upload=True, limit=5):
 # +
 # IPython.display.Audio(b''.join(ep.sounds))
 # -
+
+1
 
 
