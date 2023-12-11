@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.15.0
+#       jupytext_version: 1.15.2
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -185,6 +185,7 @@ class Chat:
             logger.info(f'Popping message: {self._history.pop(1)}')
         if next_msg is not None:
             self._history.append({"role": "user", "content": next_msg})
+        logger.info(f'Currently at {self.num_tokens_from_messages(self._history)=} tokens in conversation')
         logger.info('requesting openai...')
         resp = self._msg(**kwargs)
         logger.info('received openai...')
@@ -195,9 +196,11 @@ class Chat:
 
 # %%
 class PodcastChat(Chat):
-    def __init__(self, topic, podcast="award winning", max_length=DEFAULT_LENGTH, hosts=['Tom', 'Jen'], host_voices=[OpenAITTS(OpenAITTS.MAN), OpenAITTS(OpenAITTS.WOMAN)]):
+    def __init__(self, topic, podcast="award winning", max_length=DEFAULT_LENGTH, hosts=['Tom', 'Jen'], host_voices=[OpenAITTS(OpenAITTS.MAN), OpenAITTS(OpenAITTS.WOMAN)], extra_system=None):
         system = f"""You are an {podcast} podcast with hosts {hosts[0]} and {hosts[1]}.
 Respond with the hosts names before each line like {hosts[0]}: and {hosts[1]}:""".replace("\n", " ")
+        if extra_system is not None:
+            system = '\n'.join([system, extra_system])
         super().__init__(system, max_length=max_length)
         self._podcast = podcast
         self._topic = topic

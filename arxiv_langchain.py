@@ -40,6 +40,22 @@ JINGLE_AUDIO = JINGLE_AUDIO[:len(JINGLE_AUDIO) // 4]  # Shorten to just 4 sec
 
 # -
 
+def clean_text(text):
+    # Remove References Section
+    text = re.sub(r'\bReferences?\b.*', '', text, flags=re.DOTALL|re.IGNORECASE)
+    # Remove Footnotes Section
+    text = re.sub(r'\bFootnotes?\b.*', '', text, flags=re.DOTALL|re.IGNORECASE)
+    # Remove Figure/Table Insertions
+    text = re.sub(r'- INSERT FIGURE \d AROUND HERE -', '', text)
+    text = re.sub(r'- INSERT TABLE \d AROUND HERE -', '', text)
+    # Remove extra whitespaces but keep line breaks
+    text = re.sub(r'^\s+|\s+$', '', text, flags=re.MULTILINE)
+    # Replace multiple spaces/newlines with a single space
+    text = re.sub(r'[ \t]+', ' ', text)
+    text = re.sub(r'\n+', '\n', text)
+    return text
+
+
 class PDFEpisode(Episode):
     PDFPart = collections.namedtuple('PDFPart', 'title text')
 
@@ -56,7 +72,9 @@ class PDFEpisode(Episode):
         """Parse a PDF and extract the text."""
         with open(file, "rb") as f:
             pdf = PdfReader(f)
-            return ''.join(page.extract_text() for page in pdf.pages)
+            txt = clean_text('\n'.join(page.extract_text() for page in pdf.pages))
+            if len(txt) < 1000: raise Exception("Text too small, cleaner must have messed up.")
+            return txt
 
     def split_into_parts(self, text, max_tokens=MAX_TOKENS):
         """Split the text into parts based on titles and tokens."""
@@ -85,21 +103,7 @@ class PDFEpisode(Episode):
 
     @retrying.retry(stop_max_attempt_number=3, wait_fixed=2000)
     def write_one_part(self, chat_msg, with_commercial=False):
-        chat = PodcastChat(**{**self._kwargs, 'topic': self.title})
-        msg, aud = chat.step(msg=chat_msg, model=self.model, ret_aud=True)
-        chat._history.pop(1)
-        com_msg, com_aud = chat.step(msg="Generate a funny, weird, and concise commercial for a company that now exists as a result of this paper.", model=self.model, ret_aud=True)
-        msg = '\n'.join([msg, com_msg])
-        aud = b''.join([aud, JINGLE_AUDIO, com_aud])
-        return msg, aud
-
-    def step(self):
-        outline = self.data[0].text
-
-        # Get parts
-        with concurrent.futures.ThreadPoolExecutor(max_workers=16) as tpe:
-            jobs = ([
-                tpe.submit(self.write_one_part, f"""Explain the paper \"{self.title}\" completely, in full verbose detail.
+        extra_system = """Explain the paper completely, in full verbose detail, as a single response.
 Assume the listener doesn't know anything.
 Follow this guide:
 
@@ -118,8 +122,23 @@ Analysis of the potential impact of these findings on the field.
 
 Conclusion (500+ words)
 Recap of the main points discussed in the episode.
-Personal reflections on the paper and its broader relevance.
+Personal reflections on the paper and its broader relevance."""
+        chat = PodcastChat(**{**self._kwargs, 'topic': self.title, 'extra_system': extra_system})
+        msg, aud = chat.step(msg=chat_msg, model=self.model, ret_aud=True)
+        chat._history.pop(2)
+        chat._history[0]['content'] = chat._history[0]['content'][:len(chat._history[0]['content']) - len(extra_system)]
+        com_msg, com_aud = chat.step(msg="Generate a funny, weird, and concise commercial for a company that now exists as a result of this paper.", model=self.model, ret_aud=True)
+        msg = '\n'.join([msg, com_msg])
+        aud = b''.join([aud, JINGLE_AUDIO, com_aud])
+        return msg, aud
 
+    def step(self):
+        outline = self.data[0].text
+
+        # Get parts
+        with concurrent.futures.ThreadPoolExecutor(max_workers=16) as tpe:
+            jobs = ([
+                tpe.submit(self.write_one_part, f"""Explain the paper \"{self.title}\" completely, in full verbose detail.
 Respond with the hosts names before each line like {self.chat._hosts[0]}: and {self.chat._hosts[1]}:
 The text in the paper is:
 {part.text}
@@ -324,18 +343,9 @@ def run(arxiv_category, upload=True, limit=5):
         ep.upload(f'{datetime.datetime.now():%Y-%m-%d} {arxiv_category}: {get_title(texts)}', '\n\n'.join(texts))
     return ep
 
-
 # +
-# ep = run("psyarxiv", upload=True, limit=5)
-# IPython.display.Audio(b''.join(ep.sounds))
-
-# +
-# ep.upload(f'{datetime.datetime.now():%Y-%m-%d} astro-ph', '\n\n'.join(texts))
-
-# +
+# ep = run("psyarxiv", upload=False, limit=1)
 # IPython.display.Audio(b''.join(ep.sounds))
 # -
-
-1
 
 
