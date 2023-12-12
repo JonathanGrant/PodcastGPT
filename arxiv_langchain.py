@@ -29,9 +29,11 @@ import random
 from IPython.display import Audio
 import datetime
 
-MAX_TOKENS = 60_000 # GPT4-128k
+# MAX_TOKENS = 60_000 # GPT4-128k
+MAX_TOKENS = 12_000
 JOIN_NUM_DEFAULT = 300
-DEFAULT_TEXTGEN_MODEL = 'gpt-4-1106-preview'
+# DEFAULT_TEXTGEN_MODEL = 'gpt-4-1106-preview'
+DEFAULT_TEXTGEN_MODEL = 'gpt-3.5-turbo-1106'
 JINGLE_FILE_PATH = 'jazzstep.mp3'
 with open(JINGLE_FILE_PATH, 'rb') as jingle_file:
     JINGLE_AUDIO = jingle_file.read()
@@ -261,7 +263,7 @@ class ArxivRunner:
         return [a["pdf"].split('/')[-1] for a in articles]
 
     def get_top_psyarxiv(self):
-        url = 'https://share.osf.io/api/v3/index-card-search?cardSearchFilter%5BresourceType%5D=Preprint&cardSearchFilter%5Bpublisher%5D%5B%5D=https%3A%2F%2Fosf.io%2Fpreprints%2Fpsyarxiv&cardSearchFilter%5BaccessService%5D=https%3A%2F%2Fosf.io%2F&cardSearchText%5B*%2Ccreator.name%2CisContainedBy.creator.name%5D=&page%5Bcursor%5D=&page%5Bsize%5D=10&sort=-dateCreated'
+        url = 'https://share.osf.io/api/v3/index-card-search?cardSearchFilter%5BresourceType%5D=Preprint&cardSearchFilter%5Bpublisher%5D%5B%5D=https%3A%2F%2Fosf.io%2Fpreprints%2Fpsyarxiv&cardSearchFilter%5BaccessService%5D=https%3A%2F%2Fosf.io%2F&cardSearchText%5B*%2Ccreator.name%2CisContainedBy.creator.name%5D=&page%5Bcursor%5D=&page%5Bsize%5D=100&sort=-dateCreated'
         print(url)
         data = requests.get(url, headers={'Accept': 'application/vnd.api+json'}).json()
         data = [x for x in data['included'] if x["type"] == "index-card"]
