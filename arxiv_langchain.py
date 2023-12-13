@@ -30,10 +30,10 @@ from IPython.display import Audio
 import datetime
 
 # MAX_TOKENS = 60_000 # GPT4-128k
-MAX_TOKENS = 12_000
+MAX_TOKENS = 40_000
 JOIN_NUM_DEFAULT = 300
 # DEFAULT_TEXTGEN_MODEL = 'gpt-4-1106-preview'
-DEFAULT_TEXTGEN_MODEL = 'gpt-3.5-turbo-1106'
+DEFAULT_TEXTGEN_MODEL = 'AWS/' + AWSChat.MODELS['claude-instant']
 JINGLE_FILE_PATH = 'jazzstep.mp3'
 with open(JINGLE_FILE_PATH, 'rb') as jingle_file:
     JINGLE_AUDIO = jingle_file.read()
@@ -131,7 +131,11 @@ Personal reflections on the paper and its broader relevance."""
         chat._history[0]['content'] = chat._history[0]['content'][:len(chat._history[0]['content']) - len(extra_system)]
         com_msg, com_aud = chat.step(msg="Generate a funny, weird, and concise commercial for a company that now exists as a result of this paper.", model=self.model, ret_aud=True)
         msg = '\n'.join([msg, com_msg])
-        aud = b''.join([aud, JINGLE_AUDIO, com_aud])
+        try:
+            aud = merge_mp3s([aud, JINGLE_AUDIO, com_aud])
+        except Exception as e:
+            logger.exception(e)
+            raise
         return msg, aud
 
     def step(self):
@@ -272,7 +276,8 @@ class ArxivRunner:
 
 # +
 MODEL = DEFAULT_TEXTGEN_MODEL
-HOST_VOICES = [OpenAITTS(OpenAITTS.MAN), OpenAITTS(OpenAITTS.WOMAN)]
+# HOST_VOICES = [OpenAITTS(OpenAITTS.MAN), OpenAITTS(OpenAITTS.WOMAN)]
+HOST_VOICES = [AWSPollyTTS(AWSPollyTTS.MAN), AWSPollyTTS(AWSPollyTTS.WOMAN)]
 PODCAST_ARGS = ("ArxivPodcastGPT", "ArxivPodcastGPT.github.io", "podcasts/ComputerScience/Consolidated/podcast.xml")
 
 def create_large_episode(arxiv_category, limit=5, add_commercials=False):
@@ -299,7 +304,7 @@ def create_large_episode(arxiv_category, limit=5, add_commercials=False):
             logger.exception(f"Error processing arxiv_id {arxiv_id}: {e}")
             continue
 
-        audios.append(b''.join(arxiv_episode.sounds))
+        audios.append(merge_mp3s(arxiv_episode.sounds))
         audios.append(JINGLE_AUDIO)
         arxiv_title = re.sub('[^0-9a-zA-Z]+', ' ', arxiv_episode.arxiv_title)
         texts.append(f'ChatGPT generated podcast using model={MODEL} for https://arxiv.org/abs/{arxiv_id} {arxiv_title}')
@@ -346,8 +351,9 @@ def run(arxiv_category, upload=True, limit=5):
     return ep
 
 # +
-# ep = run("psyarxiv", upload=False, limit=1)
-# IPython.display.Audio(b''.join(ep.sounds))
+# # %%time
+# ep = run("psyarxiv", upload=True, limit=5)
+# IPython.display.Audio(merge_mp3s(ep.sounds))
 # -
 
 

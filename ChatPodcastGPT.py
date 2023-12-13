@@ -20,6 +20,7 @@ import tempfile
 import IPython
 import enum
 import jonlog
+import json
 from gtts import gTTS
 import uuid
 import datetime as dt
@@ -31,11 +32,15 @@ import time
 import threading
 import os
 import re
+import io
 import retrying
+import pydub
 from xml.dom import minidom
 from xml.etree import ElementTree as ET
 import requests
 from bs4 import BeautifulSoup
+import boto3
+from botocore.exceptions import ClientError
 logger = jonlog.getLogger()
 openai.api_key = os.environ.get("OPENAI_KEY", None) or open('/Users/jong/.openai_key').read().strip()
 
@@ -135,8 +140,71 @@ class OpenAITTS:
 
 
 # %%
+class AWSPollyTTS:
+    WOMAN = 'Kimberly'
+    MAN = 'Matthew'
+    BRIT_WOMAN = 'Amy'
+
+    def __init__(self, voice_id=None):
+        self.client = boto3.client('polly', region_name="us-east-1")
+        self._voice_id = voice_id or self.WOMAN
+
+    @RateLimited(95)
+    @jonlog.retry_with_logging()
+    def tts(self, text):
+        response = self.client.synthesize_speech(
+            Text=text,
+            OutputFormat='mp3',
+            VoiceId=self._voice_id
+        )
+        # The audio stream containing the synthesized speech
+        audio_stream = response.get('AudioStream')
+        return audio_stream.read()
+
+
+# %%
+class AWSChat:
+    MODELS = {
+        "claude-instant": "anthropic.claude-instant-v1",
+        "claude-best": "anthropic.claude-v2:1",
+    }
+
+    @classmethod
+    def msg(cls, messages=None, model="anthropic.claude-instant-v1", **kwargs):
+        client = boto3.client(service_name="bedrock-runtime", region_name="us-east-1")
+        try:
+            # The different model providers have individual request and response formats.
+            # For the format, ranges, and default values for Anthropic Claude, refer to:
+            # https://docs.anthropic.com/claude/reference/complete_post
+
+            # Claude requires you to enclose the prompt as follows:
+            # enclosed_prompt = "Human: " + prompt + "\n\nAssistant:"
+            prompt = "\n\n".join(
+                [f'{"" if (msg["role"] == "system" and model == cls.MODELS["claude-best"]) else ("Human" if msg["role"] != "assistant" else "Assistant")}: {msg["content"]}' for msg in messages] +
+                ["Assistant:"]
+            )
+
+            if 'temperature' not in kwargs:
+                kwargs['temperature'] = 1
+            body = {
+                "prompt": prompt,
+                "max_tokens_to_sample": 2048,
+                **kwargs
+            }
+            response = client.invoke_model(
+                modelId=model, body=json.dumps(body)
+            )
+            response_body = json.loads(response["body"].read())
+            completion = response_body["completion"]
+            return completion
+        except ClientError as e:
+            logger.exception(f"Couldn't invoke {model}", e)
+            raise
+
+
+# %%
 DEFAULT_MODEL = 'gpt-4-1106-preview'
-DEFAULT_LENGTH  = 120_000
+DEFAULT_LENGTH  = 80_000
 
 class Chat:
     class Model(enum.Enum):
@@ -172,12 +240,22 @@ class Chat:
 
     @retrying.retry(stop_max_attempt_number=5, wait_fixed=2000)
     def _msg(self, *args, model=DEFAULT_MODEL, **kwargs):
-        return openai.OpenAI(api_key=openai.api_key).chat.completions.create(
-            *args,
-            model=model,
-            messages=self._history,
-            **kwargs
-        )
+        logger.info(f'requesting chatcompletion {model=}...')
+        if model.startswith("AWS/"):
+            model = model[4:]
+            resp = AWSChat.msg(
+                messages=self._history,
+                **kwargs
+            )
+        else:
+            resp = openai.OpenAI(api_key=openai.api_key).chat.completions.create(
+                *args,
+                model=model,
+                messages=self._history,
+                **kwargs
+            ).choices[0].message.content
+        logger.info(f'received chatcompletion {model=}...')
+        return resp
     
     def message(self, next_msg=None, **kwargs):
         # TODO: Optimize this if slow through easy caching
@@ -186,17 +264,15 @@ class Chat:
         if next_msg is not None:
             self._history.append({"role": "user", "content": next_msg})
         logger.info(f'Currently at {self.num_tokens_from_messages(self._history)=} tokens in conversation')
-        logger.info('requesting openai...')
         resp = self._msg(**kwargs)
-        logger.info('received openai...')
-        text = resp.choices[0].message.content
+        text = resp
         self._history.append({"role": "assistant", "content": text})
         return text
 
 
 # %%
 class PodcastChat(Chat):
-    def __init__(self, topic, podcast="award winning", max_length=DEFAULT_LENGTH, hosts=['Tom', 'Jen'], host_voices=[OpenAITTS(OpenAITTS.MAN), OpenAITTS(OpenAITTS.WOMAN)], extra_system=None):
+    def __init__(self, topic, podcast="award winning", max_length=DEFAULT_LENGTH, hosts=['Tom', 'Jen'], host_voices=[AWSPollyTTS(AWSPollyTTS.MAN), AWSPollyTTS(AWSPollyTTS.WOMAN)], extra_system=None):
         system = f"""You are an {podcast} podcast with hosts {hosts[0]} and {hosts[1]}.
 Respond with the hosts names before each line like {hosts[0]}: and {hosts[1]}:""".replace("\n", " ")
         if extra_system is not None:
@@ -217,9 +293,9 @@ Make sure to teach complex topics in an intuitive way.""".replace("\n", " ")
             i = 0
             jobs = []
             def write_audio(msg, i, voice, **kwargs):
-                logger.info(f'requesting tts {i=}')
+                logger.info(f'requesting tts {i=} {voice=}')
                 s = voice.tts(msg)
-                logger.info(f'received tts {i=}')
+                logger.info(f'received tts {i=} {voice=}')
                 return s
 
             text = text.replace('\n', '!!!LINEBREAK!!!').replace('\\', '').replace('"', '')
@@ -244,7 +320,7 @@ Make sure to teach complex topics in an intuitive way.""".replace("\n", " ")
             # Concat files
             audios = [job.result() for job in jobs]
             logger.info('concatting audio')
-            audio = b''.join(audios)
+            audio = merge_mp3s(audios)
             logger.info('done with audio!')
             IPython.display.display(IPython.display.Audio(audio, autoplay=False))
             return audio
@@ -376,7 +452,7 @@ a concise plaintext outline with exactly {n} parts for a podcast titled {self.ch
 Only return the parts and nothing else.
 Do not include a conclusion or intro.
 Do not write more than {n} parts.
-Format it like this: 1. insert-title-here... 2. another-title-here...""".replace("\n", " "))
+Format it like this: 1. insert-title-here, 2. another-title-here, ...""".replace("\n", " "))
         resp = chat.message(model=self.text_model)
         chapter_pattern = re.compile(r'\d+\.\s+.*')
         chapters = chapter_pattern.findall(resp)
@@ -416,18 +492,40 @@ Format it like this: 1. insert-title-here... 2. another-title-here...""".replace
         with tempfile.TemporaryDirectory() as tmpdir:
             tmppath = os.path.join(tmpdir, "audio_file.mp3")
             with open(tmppath, "wb") as f:
-                f.write(b''.join(self.sounds))
+                f.write(merge_mp3s(self.sounds))
             self.pod.upload_episode(tmppath, f"podcasts/audio/{title_small}.mp3", title, descr)
+
+
+# %%
+def merge_mp3s(mp3_bytes_list):
+    """
+    Merges multiple MP3 bytestrings into a single MP3 bytestring.
+    
+    :param mp3_bytes_list: List of MP3 bytestrings
+    :return: Merged MP3 as bytestring
+    """
+    # Convert the first MP3 bytestring to an AudioSegment
+    combined = pydub.AudioSegment.from_file(io.BytesIO(mp3_bytes_list[0]), format="mp3")
+
+    # Loop through the rest of the MP3 bytestrings and append them
+    for mp3_bytes in mp3_bytes_list[1:]:
+        next_segment = pydub.AudioSegment.from_file(io.BytesIO(mp3_bytes), format="mp3")
+        combined += next_segment
+
+    # Export the combined audio to a bytestring
+    combined_buffer = io.BytesIO()
+    combined.export(combined_buffer, format="mp3")
+    return combined_buffer.getvalue()
 
 # %%
 # # %%time
 # ep = Episode(
 #     episode_type='narration',
-#     topic="Hidden History: Unraveling 7 of History's Mysteries - From the Great Emu War to the Green Children of Woolpit",
-#     max_length=120_000,
-#     text_model='gpt-4-1106-preview',
+#     topic="Hidden History: Unraveling 3 of History's Adorable Mysteries",
+#     max_length=80_000,
+#     # text_model='gpt-4-1106-preview',
+#     text_model='AWS/anthropic.claude-instant-v1',
 # )
-# outline, txt = ep.step(nparts='7')
-# ep.upload("(New OpenAI APIs v1) " + ep.chat._topic[:200], '\n'.join(outline))
+# outline, txt = ep.step(nparts='3')
 
 # %%

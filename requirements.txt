@@ -9,3 +9,5 @@ retrying
 bs4
 feedparser
 PyPDF2
+pydub
+boto3
