@@ -110,7 +110,7 @@ class MoneyStuff:
 def run(ndays=1):
     for src, prefix in [(MoneyStuff(), 'MoneyStuff')]:
         print(prefix)
-        if prefix == 'MoneyStuff': continue
+        # if prefix == 'MoneyStuff': continue
         articles = src.list()
         now = datetime.datetime.now()
         for article in articles:
