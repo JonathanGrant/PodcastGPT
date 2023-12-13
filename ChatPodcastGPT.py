@@ -155,7 +155,8 @@ class AWSPollyTTS:
         response = self.client.synthesize_speech(
             Text=text,
             OutputFormat='mp3',
-            VoiceId=self._voice_id
+            VoiceId=self._voice_id,
+            Engine="neural",
         )
         # The audio stream containing the synthesized speech
         audio_stream = response.get('AudioStream')
