@@ -46,7 +46,7 @@ class MoneyStuff:
             date_text = article.find('time').get_text(strip=True) if article.find('time') else None
             link = article.find('a', href=True)
         
-            if title and date_text and link and 'hours ago' in date_text:
+            if title and date_text and link and ('hours ago' in date_text or 'hour ago' in date_text):
                 articles.append({
                     'title': title.get_text(strip=True),
                     'link': link['href']
