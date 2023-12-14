@@ -112,6 +112,7 @@ def run(ndays=1):
         print(prefix)
         # if prefix == 'MoneyStuff': continue
         articles = src.list()
+        print(articles)
         now = datetime.datetime.now()
         for article in articles:
             logger.info(f"Writing {article}")
