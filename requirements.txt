@@ -11,3 +11,4 @@ feedparser
 PyPDF2
 pydub
 boto3
+mistralai

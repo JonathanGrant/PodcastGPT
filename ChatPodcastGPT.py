@@ -41,6 +41,10 @@ import requests
 from bs4 import BeautifulSoup
 import boto3
 from botocore.exceptions import ClientError
+# import vertexai
+# import vertexai.preview.generative_models
+from mistralai.client import MistralClient
+from mistralai.models.chat_completion import ChatMessage as MistralChatMessage
 logger = jonlog.getLogger()
 openai.api_key = os.environ.get("OPENAI_KEY", None) or open('/Users/jong/.openai_key').read().strip()
 
@@ -204,6 +208,97 @@ class AWSChat:
 
 
 # %%
+# class GoogleChat:
+#     MODELS = {
+#         "gemini-pro": "gemini-pro",
+#     }
+
+#     @classmethod
+#     def consolidate_messages(cls, message_list):
+#         if not message_list:
+#             return []
+    
+#         consolidated = []
+#         current_role = None
+#         current_content = ""
+    
+#         for message in message_list:
+#             role = message.get("role")
+#             content = message.get("content", "")
+    
+#             if role == "system":
+#                 role = "user"
+#             if role == current_role:
+#                 current_content += "\n" + content
+#             else:
+#                 if current_role is not None:
+#                     consolidated.append({"role": current_role, "content": current_content})
+#                 current_content = content
+#                 current_role = role
+    
+#         if current_role is not None:
+#             consolidated.append({"role": current_role, "content": current_content})
+    
+#         return consolidated
+
+#     @classmethod
+#     def msg(cls, messages=None, model="gemini-pro", **kwargs):
+#         vertexai.init(project='summer2023-392312', location='us-central1')
+#         model = vertexai.preview.generative_models.GenerativeModel(model)
+#         contents = [vertexai.generative_models._generative_models.Content(
+#             role="user" if msg["role"] != "assistant" else "model",
+#             parts=[vertexai.generative_models._generative_models.Part.from_text(msg["content"])]
+#         ) for msg in cls.consolidate_messages(messages)]
+#         response = model.generate_content(contents=contents)
+#         return response.text
+
+# %%
+class MistralChat:
+    MODELS = {
+        "mistral-medium": "mistral-medium",
+        "mistral-small": "mistral-small",
+    }
+    api_key = os.environ.get("MISTRAL_API_KEY") or open('/Users/jong/.mistral_apikey').read().strip()
+
+    @classmethod
+    def consolidate_messages(cls, message_list):
+        if not message_list:
+            return []
+    
+        consolidated = []
+        current_role = None
+        current_content = ""
+    
+        for message in message_list:
+            role = message["role"]
+            content = message["content"]
+
+            if role == current_role:
+                current_content += "\n" + content
+            else:
+                if current_role is not None:
+                    consolidated.append({"role": current_role, "content": current_content})
+                current_content = content
+                current_role = role
+    
+        if current_role is not None:
+            consolidated.append({"role": current_role, "content": current_content})
+
+        return consolidated
+
+    @classmethod
+    def msg(cls, messages=None, model="mistral-medium", **kwargs):
+        client = MistralClient(api_key=cls.api_key)
+        if not any(msg['role'] == 'user' for msg in messages):
+            messages[-1]['role'] = 'user'
+        chat_response = client.chat(
+            model=model,
+            messages=[MistralChatMessage(**msg) for msg in cls.consolidate_messages(messages)],
+        )
+        return chat_response.choices[0].message.content
+
+
+# %%
 DEFAULT_MODEL = 'gpt-4-1106-preview'
 DEFAULT_LENGTH  = 80_000
 
@@ -248,6 +343,12 @@ class Chat:
                 messages=self._history,
                 **kwargs
             )
+        # elif model.startswith("GOOGLE/"):
+        #     model = model[7:]
+        #     resp = GoogleChat.msg(messages=self._history, model=model, **kwargs)
+        elif model.startswith("MISTRAL/"):
+            model = model[8:]
+            resp = MistralChat.msg(messages=self._history, model=model, **kwargs)
         else:
             resp = openai.OpenAI(api_key=openai.api_key).chat.completions.create(
                 *args,
@@ -522,11 +623,15 @@ def merge_mp3s(mp3_bytes_list):
 # # %%time
 # ep = Episode(
 #     episode_type='narration',
-#     topic="Hidden History: Unraveling 3 of History's Adorable Mysteries",
-#     max_length=80_000,
+#     topic="Hidden History: Unraveling 3 of History's Funniest Mysteries",
+#     max_length=10_000,
 #     # text_model='gpt-4-1106-preview',
-#     text_model='AWS/anthropic.claude-instant-v1',
+#     text_model='MISTRAL/mistral-medium',
 # )
 # outline, txt = ep.step(nparts='3')
 
 # %%
+# print(txt)
+
+# %%
+# print(txt)

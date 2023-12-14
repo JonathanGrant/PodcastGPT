@@ -10,6 +10,7 @@ jobs:
     env:
       OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
       GH_KEY: ${{ secrets.GH_KEY }}
+      MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
     steps:
       # Step 1: Checkout the repository
       - name: Checkout code

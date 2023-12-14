@@ -33,7 +33,7 @@ import datetime
 MAX_TOKENS = 40_000
 JOIN_NUM_DEFAULT = 300
 # DEFAULT_TEXTGEN_MODEL = 'gpt-4-1106-preview'
-DEFAULT_TEXTGEN_MODEL = 'AWS/' + AWSChat.MODELS['claude-instant']
+DEFAULT_TEXTGEN_MODEL = 'MISTRAL/' + MistralChat.MODELS['mistral-medium']
 JINGLE_FILE_PATH = 'jazzstep.mp3'
 with open(JINGLE_FILE_PATH, 'rb') as jingle_file:
     JINGLE_AUDIO = jingle_file.read()
@@ -352,7 +352,7 @@ def run(arxiv_category, upload=True, limit=5):
 
 # +
 # # %%time
-# ep = run("psyarxiv", upload=True, limit=5)
+# ep = run("psyarxiv", upload=False, limit=1)
 # IPython.display.Audio(merge_mp3s(ep.sounds))
 # -
 
