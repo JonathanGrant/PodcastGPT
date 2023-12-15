@@ -208,49 +208,49 @@ class AWSChat:
 
 
 # %%
-# class GoogleChat:
-#     MODELS = {
-#         "gemini-pro": "gemini-pro",
-#     }
+class GoogleChat:
+    MODELS = {
+        "gemini-pro": "gemini-pro",
+    }
 
-#     @classmethod
-#     def consolidate_messages(cls, message_list):
-#         if not message_list:
-#             return []
-    
-#         consolidated = []
-#         current_role = None
-#         current_content = ""
-    
-#         for message in message_list:
-#             role = message.get("role")
-#             content = message.get("content", "")
-    
-#             if role == "system":
-#                 role = "user"
-#             if role == current_role:
-#                 current_content += "\n" + content
-#             else:
-#                 if current_role is not None:
-#                     consolidated.append({"role": current_role, "content": current_content})
-#                 current_content = content
-#                 current_role = role
-    
-#         if current_role is not None:
-#             consolidated.append({"role": current_role, "content": current_content})
-    
-#         return consolidated
+    @classmethod
+    def consolidate_messages(cls, message_list):
+        if not message_list:
+            return []
+        consolidated = []
+        current_role = None
+        current_content = ""
 
-#     @classmethod
-#     def msg(cls, messages=None, model="gemini-pro", **kwargs):
-#         vertexai.init(project='summer2023-392312', location='us-central1')
-#         model = vertexai.preview.generative_models.GenerativeModel(model)
-#         contents = [vertexai.generative_models._generative_models.Content(
-#             role="user" if msg["role"] != "assistant" else "model",
-#             parts=[vertexai.generative_models._generative_models.Part.from_text(msg["content"])]
-#         ) for msg in cls.consolidate_messages(messages)]
-#         response = model.generate_content(contents=contents)
-#         return response.text
+        for message in message_list:
+            role = message.get("role")
+            content = message.get("content", "")
+    
+            if role == "system":
+                role = "user"
+            if role == current_role:
+                current_content += "\n" + content
+            else:
+                if current_role is not None:
+                    consolidated.append({"role": current_role, "content": current_content})
+                current_content = content
+                current_role = role
+    
+        if current_role is not None:
+            consolidated.append({"role": current_role, "content": current_content})
+    
+        return consolidated
+
+    @classmethod
+    def msg(cls, messages=None, model="gemini-pro", **kwargs):
+        vertexai.init(project='summer2023-392312', location='us-central1')
+        model = vertexai.preview.generative_models.GenerativeModel(model)
+        contents = [vertexai.generative_models._generative_models.Content(
+            role="user" if msg["role"] != "assistant" else "model",
+            parts=[vertexai.generative_models._generative_models.Part.from_text(msg["content"])]
+        ) for msg in cls.consolidate_messages(messages)]
+        response = model.generate_content(contents=contents)
+        return response.text
+
 
 # %%
 class MistralChat:
@@ -299,8 +299,10 @@ class MistralChat:
 
 
 # %%
-DEFAULT_MODEL = 'gpt-4-1106-preview'
-DEFAULT_LENGTH  = 80_000
+# DEFAULT_MODEL = 'gpt-4-1106-preview'
+# DEFAULT_LENGTH  = 80_000
+DEFAULT_MODEL = 'GOOGLE/gemini-pro'
+DEFAULT_LENGTH  = 29_000
 
 class Chat:
     class Model(enum.Enum):
@@ -317,13 +319,19 @@ class Chat:
     @classmethod
     def num_tokens_from_text(cls, text, model=DEFAULT_MODEL):
         """Returns the number of tokens used by some text."""
-        encoding = tiktoken.encoding_for_model(model)
+        try:
+            encoding = tiktoken.encoding_for_model(model)
+        except:
+            encoding = tiktoken.encoding_for_model('gpt-3.5-turbo')  # Lol openai probably the same
         return len(encoding.encode(text))
     
     @classmethod
     def num_tokens_from_messages(cls, messages, model=DEFAULT_MODEL):
         """Returns the number of tokens used by a list of messages."""
-        encoding = tiktoken.encoding_for_model(model)
+        try:
+            encoding = tiktoken.encoding_for_model(model)
+        except:
+            encoding = tiktoken.encoding_for_model('gpt-3.5-turbo')  # Lol openai probably the same
         num_tokens = 0
         for message in messages:
             num_tokens += 4  # every message follows <im_start>{role/name}\n{content}<im_end>\n
@@ -343,9 +351,9 @@ class Chat:
                 messages=self._history,
                 **kwargs
             )
-        # elif model.startswith("GOOGLE/"):
-        #     model = model[7:]
-        #     resp = GoogleChat.msg(messages=self._history, model=model, **kwargs)
+        elif model.startswith("GOOGLE/"):
+            model = model[7:]
+            resp = GoogleChat.msg(messages=self._history, model=model, **kwargs)
         elif model.startswith("MISTRAL/"):
             model = model[8:]
             resp = MistralChat.msg(messages=self._history, model=model, **kwargs)
@@ -374,7 +382,7 @@ class Chat:
 
 # %%
 class PodcastChat(Chat):
-    def __init__(self, topic, podcast="award winning", max_length=DEFAULT_LENGTH, hosts=['Tom', 'Jen'], host_voices=[AWSPollyTTS(AWSPollyTTS.MAN), AWSPollyTTS(AWSPollyTTS.WOMAN)], extra_system=None):
+    def __init__(self, topic, podcast="award winning", max_length=DEFAULT_LENGTH, hosts=['Tom', 'Jen'], host_voices=[AWSPollyTTS(AWSPollyTTS.MAN), OpenAITTS(OpenAITTS.WOMAN)], extra_system=None):
         system = f"""You are an {podcast} podcast with hosts {hosts[0]} and {hosts[1]}.
 Respond with the hosts names before each line like {hosts[0]}: and {hosts[1]}:""".replace("\n", " ")
         if extra_system is not None:
@@ -623,15 +631,12 @@ def merge_mp3s(mp3_bytes_list):
 # # %%time
 # ep = Episode(
 #     episode_type='narration',
-#     topic="Hidden History: Unraveling 3 of History's Funniest Mysteries",
-#     max_length=10_000,
+#     topic="Hidden History: Unraveling 3 of History's Funniest Mysteries from the 1st Century",
+#     max_length=29_000,
 #     # text_model='gpt-4-1106-preview',
-#     text_model='MISTRAL/mistral-medium',
+#     text_model='GOOGLE/gemini-pro',
 # )
 # outline, txt = ep.step(nparts='3')
+# ep.upload("[Google Gemini] Hidden History: Unraveling 3 of History's Funniest Mysteries from the 1st Century", "Hidden History: Unraveling 3 of History's Funniest Mysteries from the 1st Century")
 
 # %%
-# print(txt)
-
-# %%
-# print(txt)
