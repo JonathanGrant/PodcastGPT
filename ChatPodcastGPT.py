@@ -41,8 +41,8 @@ import requests
 from bs4 import BeautifulSoup
 import boto3
 from botocore.exceptions import ClientError
-# import vertexai
-# import vertexai.preview.generative_models
+import vertexai
+import vertexai.preview.generative_models
 from mistralai.client import MistralClient
 from mistralai.models.chat_completion import ChatMessage as MistralChatMessage
 logger = jonlog.getLogger()
