@@ -1,7 +1,7 @@
 name: Run JonReads
 on:
   schedule:
-    - cron: '6 21 * * *'
+    - cron: '6 */4 * * *'
   workflow_dispatch: # This allows manual triggering
 jobs:
   run-scripts:
@@ -33,4 +33,4 @@ jobs:
           aws-region: us-east-1
       # Step 4: Run the Python script
       - name: Run jonreads
-        run: python -c 'from email_jonreads import run; import datetime; run(datetime.timedelta(days=2))'
+        run: python -c 'from email_jonreads import run; import datetime; run(datetime.timedelta(days=1))'
