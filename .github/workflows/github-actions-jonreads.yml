@@ -1,0 +1,36 @@
+name: Run JonReads
+on:
+  schedule:
+    - cron: '6 21 * * *'
+  workflow_dispatch: # This allows manual triggering
+jobs:
+  run-scripts:
+    name: Run jonreads script
+    runs-on: ubuntu-latest
+    env:
+      OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
+      GH_KEY: ${{ secrets.GH_KEY }}
+      MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+    steps:
+      # Step 1: Checkout the repository
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: setup-ffmpeg
+        uses: FedericoCarboni/setup-ffmpeg@v2
+      # Step 2: Setup Python
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.11.x'
+      # Step 3: Install dependencies if any (uncomment if needed)
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      # Step 4: Run the Python script
+      - name: Run jonreads
+        run: python -c 'from email_jonreads import run; import datetime; run(datetime.timedelta(days=2))'
