@@ -31,6 +31,7 @@ from github import Github
 import time
 import threading
 import os
+import random
 import re
 import io
 import retrying
@@ -165,6 +166,15 @@ class AWSPollyTTS:
         # The audio stream containing the synthesized speech
         audio_stream = response.get('AudioStream')
         return audio_stream.read()
+
+
+# %%
+def get_random_voice():
+    return random.choice([
+        OpenAITTS(voice_id=vid) for vid in ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']
+    ] + [
+        AWSPollyTTS(voice_id=vid) for vid in ['Kimberly', 'Matthew', 'Amy']
+    ])
 
 
 # %%
