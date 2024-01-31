@@ -444,14 +444,59 @@ Make sure to teach complex topics in an intuitive way.""".replace("\n", " ")
 
 
 # %%
+class PodcastXMLHandler:
+    def __init__(self):
+        self.root = ET.Element("channel")  # 'channel' is typically used in podcast RSS feeds
+        self.tree = ET.ElementTree(self.root)
+
+    def to_xml(self, filepath):
+        self.tree.write(filepath, encoding='utf-8', xml_declaration=True, pretty_print=True)
+
+    @classmethod
+    def from_xml(cls, filepath):
+        self = cls()
+        self.tree = ET.parse(filepath)
+        self.root = self.tree.getroot()
+        return self
+
+    def contains_episode(self, episode_name):
+        for episode in self.root.findall('./channel/item'):
+            title = episode.find('title').text
+            if title == episode_name:
+                return True
+        return False
+
+    def remove_episodes_older_than(self, limit):
+        now = datetime.datetime.now()
+        for episode in self.root.findall('./channel/item'):
+            pub_date = datetime.datetime.strptime(episode.find('pubDate').text, '%a, %d %b %Y %H:%M:%S %Z')  # RSS date format
+            if now - pub_date > limit:
+                episode.getparent().remove(episode)
+
+    def add_episode(self, episode_details):
+        episode = ET.SubElement(self.root, './channel/item')
+        for key, value in episode_details.items():
+            ET.SubElement(episode, key).text = str(value)
+
+"""
+pd = PodcastXMLHandler.from_xml('/Users/jong/Downloads/podcast.xml')
+pd.contains_episode('cs.IR: Recent Research Papers on Data Science and Cybersecurity.')
+pd.remove_episodes_older_than(datetime.timedelta(days=30))
+pd.to_xml('/Users/jong/Downloads/podcast2.xml')
+"""
+pass
+
+
+# %%
 class PodcastRSSFeed:
     """Class to handle rss feed operations using github pages."""
 
-    def __init__(self, org, repo, xml_path):
+    def __init__(self, org, repo, xml_path, clean_timedelta=None):
         self.org = org
         self.repo = repo
         self.xml_path = xml_path
         self.local_xml_path = self.download_podcast_xml()
+        self.clean_timedelta = clean_timedelta
 
     def get_file_base64(self, file_path):
         with open(file_path, 'rb') as file:
@@ -488,6 +533,31 @@ class PodcastRSSFeed:
         })
         ET.SubElement(item, 'guid').text = str(uuid.uuid4())
 
+        # Convert back to string and pretty-format
+        pretty_xml = minidom.parseString(ET.tostring(root)).toprettyxml(indent='  ')
+        # Remove extra newlines
+        pretty_xml = os.linesep.join([s for s in pretty_xml.splitlines() if s.strip()])
+
+        return pretty_xml
+
+    def remove_episodes_older_than(self, xml_data, limit):
+        now = dt.datetime.now()
+        root = ET.fromstring(xml_data)
+        for episode in root.findall('./channel/item'):
+            pub_date = dt.datetime.strptime(episode.find('pubDate').text, '%a, %d %b %Y %H:%M:%S %Z')  # RSS date format
+            if now - pub_date > limit:
+                episode_path = episode.find('enclosure').attrib['url'].split('.github.io/', 1)[1]
+                logger.info(f"Deleting old episode: {episode_path}")
+                episode.getparent().remove(episode)
+                # Get the repository
+                try:
+                    repo = gh.get_user().get_repo(self.repo)
+                except:
+                    repo = gh.get_organization(self.org).get_repo(self.repo)
+                try:
+                    repo.delete_file(episode_path, "remove test", contents.sha, branch="test")
+                except Exception as e:
+                    logger.exception(e)
         # Convert back to string and pretty-format
         pretty_xml = minidom.parseString(ET.tostring(root)).toprettyxml(indent='  ')
         # Remove extra newlines
