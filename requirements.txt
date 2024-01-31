@@ -13,3 +13,4 @@ pydub
 boto3
 mistralai
 google-cloud-aiplatform
+lxml
