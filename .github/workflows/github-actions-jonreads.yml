@@ -1,7 +1,7 @@
 name: Run JonReads
 on:
   schedule:
-    - cron: '6 */4 * * *'
+    - cron: '6 */1 * * *'
   workflow_dispatch: # This allows manual triggering
 jobs:
   run-scripts:
