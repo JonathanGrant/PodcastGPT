@@ -169,12 +169,12 @@ class AWSPollyTTS:
 
 
 # %%
-def get_random_voice():
-    return random.choice([
+def get_random_voices(n=2):
+    return random.sample([
         OpenAITTS(voice_id=vid) for vid in ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']
     ] + [
         AWSPollyTTS(voice_id=vid) for vid in ['Kimberly', 'Matthew', 'Amy']
-    ])
+    ], n)
 
 
 # %%
@@ -311,13 +311,13 @@ class MistralChat:
 # %%
 # DEFAULT_MODEL = 'gpt-4-1106-preview'
 # DEFAULT_LENGTH  = 80_000
-DEFAULT_MODEL = 'GOOGLE/gemini-pro'
+DEFAULT_MODEL = 'gpt-3.5-turbo'
 DEFAULT_LENGTH  = 29_000
 
 class Chat:
     class Model(enum.Enum):
         GPT3_5 = "gpt-3.5-turbo"
-        GPT_4  = "gpt-4-1106-preview"
+        GPT_4  = "gpt-4-turbo-preview"
 
     def __init__(self, system, max_length=DEFAULT_LENGTH):
         self._system = system

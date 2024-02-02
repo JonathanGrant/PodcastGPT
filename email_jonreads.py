@@ -166,7 +166,7 @@ def run(timediff):
             topic=title,
             episode_type='pure_tts',
             podcast_args=podcast_args.values(),
-            host_voices=[get_random_voice(), get_random_voice()],
+            host_voices=get_random_voices(2),
         )
         ep.step(msg=ep_lines)
         ep.upload(title, f'{title_long}')
