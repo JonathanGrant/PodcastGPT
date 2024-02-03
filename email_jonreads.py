@@ -152,7 +152,7 @@ def run(timediff):
         if now - mail_meta['date'] > timediff:
             continue
 
-        title_long = f'[{mail_meta["sender"].split(" <")[0]}] {re.sub(r"[^a-zA-Z0-9]", "_", mail_meta["subject"])}'
+        title_long = f'[{re.sub(r"[^a-zA-Z0-9]", "_", mail_meta["sender"].split(" <")[0])}] {re.sub(r"[^a-zA-Z0-9]", "_", mail_meta["subject"])}'
         title = title_long[:200]
         if pd.contains_episode(title):
             continue
