@@ -106,24 +106,7 @@ class PDFEpisode(Episode):
     def write_one_part(self, chat_msg, with_commercial=False):
         extra_system = """Explain the paper completely, in full verbose detail, as a single response.
 Assume the listener doesn't know anything.
-Follow this guide:
-
-Introduction (500+ words)
-Contextual background: Why this paper is significant in its field.
-Key Concepts and Background: Explanation of the main scientific concepts or theories addressed in the paper.
-(Optional) Breakdown of complex vocabulary used.
-
-Core (2500+ words)
-Detailed discussion of the research paper’s objectives.
-Methodology and techniques used.
-Key findings and results.
-
-Implications and Applications (500+ words)
-Analysis of the potential impact of these findings on the field.
-
-Conclusion (500+ words)
-Recap of the main points discussed in the episode.
-Personal reflections on the paper and its broader relevance."""
+Afterwards, give your personal reflections on the paper and its broader relevance."""
         chat = PodcastChat(**{**self._kwargs, 'topic': self.title, 'extra_system': extra_system})
         msg, aud = chat.step(msg=chat_msg, model=self.model, ret_aud=True)
         chat._history.pop(2)
