@@ -186,7 +186,7 @@ def run(timediff):
         if now - mail_meta['date'] > timediff:
             continue
 
-        title_long = f'[{mail_meta["sender"].split(" <")[0]}] {re.sub(r"[^a-zA-Z0-9]", "_", mail_meta["subject"])}'
+        title_long = f'[{re.sub(r"[^a-zA-Z0-9]", "_", mail_meta["sender"].split(" <")[0])}] {re.sub(r"[^a-zA-Z0-9]", "_", mail_meta["subject"])}'
         title = title_long[:200]
         if pd.contains_episode(title):
             continue
@@ -196,7 +196,7 @@ def run(timediff):
         ep_text = mail.get_html_text(mid)
         if len(ep_text) > MAX_LENGTH:
             continue
-        ep_text = rewrite_email(ep_text).split('\n')
+        ep_text = ep_text.replace('. ', '\n').split('\n')
         ep_lines = [''.join(ep_text[i:i+3]) for i in range(0, len(ep_text), 3)]  # Turn into speakings
 
         ep = Episode(
