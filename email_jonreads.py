@@ -23,18 +23,33 @@ from email.utils import parsedate_to_datetime
 import datetime
 from lxml import etree as ET
 import pytz
+import html
 
 from ChatPodcastGPT import *
-
-
 # -
 
+MAX_LENGTH = 50_000
+TXT_MODEL = 'gpt-3.5-turbo-0125'
+
+
 def clean_text(text):
+    # HTML unescape
+    text = html.unescape(text)
+
     # Replace non-breaking spaces and other similar whitespace characters
     text = text.replace(u'\xa0', ' ').replace(u'\u200c', '')
 
     # Optional: Remove other unwanted characters or sequences
     text = re.sub(r'[^\x00-\x7F]+', ' ', text)  # Remove non-ASCII characters
+
+    # Correcting misplaced spaces before apostrophes
+    text = re.sub(r"\s+'", "'", text)
+    
+    # Correcting a space + s pattern that should be 's
+    text = re.sub(r"(\w+)\s+s\b", r"\1's", text)
+
+    # Removing extra whitespace
+    text = re.sub(r"\s+", " ", text).strip()
     
     return text
 
@@ -61,14 +76,17 @@ class ZohoMail:
         parts = msg.walk()
         return list(parts)
 
-    def get_html_text(self, msg_id):
+    def get_html_text(self, msg_id, raw=False):
         parts = self.get_msg_parts(msg_id)
         text_content = []
         for part in parts:
             if part.get_content_type() != 'text/html':
                 continue
-            soup = bs4.BeautifulSoup(part.get_payload(decode=True).decode(), 'html.parser')
-            text_content.append(clean_text(soup.get_text()))
+            if not raw:
+                soup = bs4.BeautifulSoup(part.get_payload(decode=True).decode(), 'html.parser')
+                text_content.append(clean_text(soup.get_text()))
+            else:
+                text_content.append(part.get_payload(decode=True).decode())
         return '\n'.join(text_content)
 
     def get_email_metadata(self, msg_id):
@@ -96,8 +114,24 @@ class ZohoMail:
 # +
 # mail = ZohoMail('jonreads@zoho.com', 'pxg8myj6GMX!zqn@pfd')
 # mail.list_ids()
-# mail.get_email_metadata(b'10')
-# sentances = mail.get_html_text(b'4').replace('. ', '\n').split('\n')
+# # mail.get_email_metadata(b'')
+# txt = mail.get_html_text(b'43')
+# with open('/Users/jong/Documents/example_email.txt', 'w') as f:
+#     f.write(txt)
+# -
+
+def rewrite_email(txt):
+    chat = Chat(
+        '''Clean and slightly re-write text into something that has a strong voice.
+Keep the information the same.
+Keep the length the same.
+Separate every few sentances with a single newline character.''',
+    )
+    return chat.message(txt, model='gpt-4-0125-preview')
+
+
+# +
+# rewrite_email(txt)
 
 # +
 class PodcastXMLHandler:
@@ -152,14 +186,17 @@ def run(timediff):
         if now - mail_meta['date'] > timediff:
             continue
 
-        title_long = f'[{re.sub(r"[^a-zA-Z0-9]", "_", mail_meta["sender"].split(" <")[0])}] {re.sub(r"[^a-zA-Z0-9]", "_", mail_meta["subject"])}'
+        title_long = f'[{mail_meta["sender"].split(" <")[0]}] {re.sub(r"[^a-zA-Z0-9]", "_", mail_meta["subject"])}'
         title = title_long[:200]
         if pd.contains_episode(title):
             continue
 
         # Make and publish episode
         logger.info(f'Making {mail_meta=} {mid=} {now - mail_meta["date"]}')
-        ep_text = mail.get_html_text(mid).replace('. ', '\n').split('\n')
+        ep_text = mail.get_html_text(mid)
+        if len(ep_text) > MAX_LENGTH:
+            continue
+        ep_text = rewrite_email(ep_text).split('\n')
         ep_lines = [''.join(ep_text[i:i+3]) for i in range(0, len(ep_text), 3)]  # Turn into speakings
 
         ep = Episode(
