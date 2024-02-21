@@ -445,8 +445,10 @@ Make sure to teach complex topics in an intuitive way.""".replace("\n", " ")
             IPython.display.display(IPython.display.Audio(audio, autoplay=False))
             return audio
             
-    def step(self, msg=None, skip_aud=False, ret_aud=True, **kwargs):
+    def step(self, msg=None, skip_aud=False, ret_aud=True, min_length=None, **kwargs):
         msg = self.message(msg, **kwargs)
+        if min_length is not None and len(msg) < min_length:
+            raise ValueError(f"Message [{msg}] is shorter than {min_length=}")
         if skip_aud: return msg
         aud = self.text2speech(msg)
         if ret_aud: return msg, aud

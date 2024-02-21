@@ -104,11 +104,13 @@ class PDFEpisode(Episode):
 
     @retrying.retry(stop_max_attempt_number=3, wait_fixed=2000)
     def write_one_part(self, chat_msg, with_commercial=False):
-        extra_system = """Explain the paper completely, in full verbose detail, as a single response.
+        extra_system = """This podcast unravels research papers with intrigue and depth, blending expert analysis with compelling storytelling to illuminate cutting-edge discoveries.
+Explain the paper completely, in full verbose detail, as a single response.
 Assume the listener doesn't know anything.
-Afterwards, give your personal reflections on the paper and its broader relevance."""
+Afterwards, give your personal reflections on the paper and its broader relevance.
+"""
         chat = PodcastChat(**{**self._kwargs, 'topic': self.title, 'extra_system': extra_system})
-        msg, aud = chat.step(msg=chat_msg, model=self.model, ret_aud=True)
+        msg, aud = chat.step(msg=chat_msg, model=self.model, ret_aud=True, min_length=200)
         chat._history.pop(2)
         chat._history[0]['content'] = chat._history[0]['content'][:len(chat._history[0]['content']) - len(extra_system)]
         com_msg, com_aud = chat.step(msg="Generate a funny, weird, and concise commercial for a company that now exists as a result of this paper.", model=self.model, ret_aud=True)
@@ -334,7 +336,7 @@ def run(arxiv_category, upload=True, limit=5):
 
 # +
 # # %%time
-# ep = run("psyarxiv", upload=False, limit=1)
+# ep = run("cs.AI", upload=False, limit=1)
 # IPython.display.Audio(merge_mp3s(ep.sounds))
 # -
 
