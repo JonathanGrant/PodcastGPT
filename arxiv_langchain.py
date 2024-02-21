@@ -71,11 +71,18 @@ class PDFEpisode(Episode):
 
     def parse_pdf(self, file):
         """Parse a PDF and extract the text."""
-        with open(file, "rb") as f:
-            pdf = PdfReader(f)
-            txt = clean_text('\n'.join(page.extract_text() for page in pdf.pages))
-            if len(txt) < 1000: raise Exception("Text too small, cleaner must have messed up.")
-            return txt
+        try:
+            with open(file, "rb") as f:
+                pdf = PdfReader(f)    
+                txt = clean_text('\n'.join(page.extract_text() for page in pdf.pages))
+        except:
+            with open(file, 'ab') as f:
+                f.write(b'%%EOF')
+            with open(file, "rb") as f:
+                pdf = PdfReader(f)    
+                txt = clean_text('\n'.join(page.extract_text() for page in pdf.pages))
+        if len(txt) < 1000: raise Exception("Text too small, cleaner must have messed up.")
+        return txt
 
     def split_into_parts(self, text, max_tokens=MAX_TOKENS):
         """Split the text into parts based on titles and tokens."""
@@ -104,10 +111,13 @@ class PDFEpisode(Episode):
 
     @retrying.retry(stop_max_attempt_number=3, wait_fixed=2000)
     def write_one_part(self, chat_msg, with_commercial=False):
-        extra_system = """This podcast unravels research papers with intrigue and depth, blending expert analysis with compelling storytelling to illuminate cutting-edge discoveries.
-Explain the paper completely, in full verbose detail, as a single response.
+        extra_system = f"""This podcast investigates research papers with intrigue and depth, blending expert analysis with compelling storytelling to illuminate cutting-edge discoveries.
+Similar to the style of the Darknet Diaries podcast.
+Tell the story of the paper completely, in full verbose detail, as a single response.
+Emphasize strong narrative storytelling.
 Assume the listener doesn't know anything.
 Afterwards, give your personal reflections on the paper and its broader relevance.
+Respond with the hosts names before each line like {self.chat._hosts[0]}: and {self.chat._hosts[1]}:
 """
         chat = PodcastChat(**{**self._kwargs, 'topic': self.title, 'extra_system': extra_system})
         msg, aud = chat.step(msg=chat_msg, model=self.model, ret_aud=True, min_length=200)
@@ -128,11 +138,7 @@ Afterwards, give your personal reflections on the paper and its broader relevanc
         # Get parts
         with concurrent.futures.ThreadPoolExecutor(max_workers=16) as tpe:
             jobs = ([
-                tpe.submit(self.write_one_part, f"""Explain the paper \"{self.title}\" completely, in full verbose detail.
-Respond with the hosts names before each line like {self.chat._hosts[0]}: and {self.chat._hosts[1]}:
-The text in the paper is:
-{part.text}
-""", with_commercial=True)
+                tpe.submit(self.write_one_part, f"Title: \"{self.title}\"\nText:\n{part.text}", with_commercial=True)
                 for part in self.data
             ])
             job2idx = {j:i for i, j in enumerate(jobs)}
@@ -336,7 +342,8 @@ def run(arxiv_category, upload=True, limit=5):
 
 # +
 # # %%time
-# ep = run("cs.AI", upload=False, limit=1)
+# sub = 'cs.AI'
+# ep = run(sub, upload=False, limit=1)
 # IPython.display.Audio(merge_mp3s(ep.sounds))
 # -
 
