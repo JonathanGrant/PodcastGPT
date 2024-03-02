@@ -480,10 +480,11 @@ class PodcastXMLHandler:
 
     def remove_episodes_older_than(self, limit):
         now = datetime.datetime.now()
+        parent_map = {c:p for p in self.root.iter() for c in p}
         for episode in self.root.findall('./channel/item'):
             pub_date = datetime.datetime.strptime(episode.find('pubDate').text, '%a, %d %b %Y %H:%M:%S %Z')  # RSS date format
             if now - pub_date > limit:
-                episode.getparent().remove(episode)
+                parent_map[episode].remove(episode)
 
     def add_episode(self, episode_details):
         episode = ET.SubElement(self.root, './channel/item')
@@ -555,19 +556,23 @@ class PodcastRSSFeed:
     def remove_episodes_older_than(self, xml_data, limit):
         now = dt.datetime.now()
         root = ET.fromstring(xml_data)
+        parent_map = {c:p for p in root.iter() for c in p}
+        token = os.environ.get("GH_KEY", None) or open("/Users/jong/.gh_token").read().strip()
+        gh = Github(token)
         for episode in root.findall('./channel/item'):
             pub_date = dt.datetime.strptime(episode.find('pubDate').text, '%a, %d %b %Y %H:%M:%S %Z')  # RSS date format
             if now - pub_date > limit:
                 episode_path = episode.find('enclosure').attrib['url'].split('.github.io/', 1)[1]
                 logger.info(f"Deleting old episode: {episode_path}")
-                episode.getparent().remove(episode)
+                parent_map[episode].remove(episode)
                 # Get the repository
                 try:
                     repo = gh.get_user().get_repo(self.repo)
                 except:
                     repo = gh.get_organization(self.org).get_repo(self.repo)
                 try:
-                    repo.delete_file(episode_path, "remove test", contents.sha, branch="test")
+                    contents = repo.get_contents(episode_path)
+                    repo.delete_file(episode_path, "remove due to date", contents.sha)
                 except Exception as e:
                     logger.exception(e)
         # Convert back to string and pretty-format
@@ -722,3 +727,6 @@ def merge_mp3s(mp3_bytes_list):
 # ep.upload("[Google Gemini] Hidden History: Unraveling 3 of History's Funniest Mysteries from the 1st Century", "Hidden History: Unraveling 3 of History's Funniest Mysteries from the 1st Century")
 
 # %%
+
+# %%
+    
