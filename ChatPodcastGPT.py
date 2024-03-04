@@ -178,14 +178,52 @@ def get_random_voices(n=2):
 
 
 # %%
+# import boto3
+
+# bedrock = boto3.client(service_name="bedrock", region_name="us-east-1")
+# response = bedrock.list_foundation_models(byProvider="anthropic")
+
+# for summary in response["modelSummaries"]:
+#     print(summary["modelId"])
+
+# %%
 class AWSChat:
     MODELS = {
         "claude-instant": "anthropic.claude-instant-v1",
         "claude-best": "anthropic.claude-v2:1",
+        "claude-3-sonnet": "anthropic.claude-3-sonnet-20240229-v1:0",
     }
 
+    
     @classmethod
-    def msg(cls, messages=None, model="anthropic.claude-instant-v1", **kwargs):
+    def consolidate_messages(cls, message_list):
+        if not message_list:
+            return []
+        consolidated = []
+        current_role = None
+        current_content = ""
+
+        for message in message_list:
+            role = message.get("role")
+            content = message.get("content", "")
+    
+            if role == "system":
+                role = "user"
+            if role == current_role:
+                current_content += "\n" + content
+            else:
+                if current_role is not None:
+                    consolidated.append({"role": current_role, "content": current_content})
+                current_content = content
+                current_role = role
+    
+        if current_role is not None:
+            consolidated.append({"role": current_role, "content": current_content})
+    
+        return consolidated
+
+    @classmethod
+    def msg(cls, messages=None, model="anthropic.claude-3-sonnet-20240229-v1:0", **kwargs):
         client = boto3.client(service_name="bedrock-runtime", region_name="us-east-1")
         try:
             # The different model providers have individual request and response formats.
@@ -194,23 +232,28 @@ class AWSChat:
 
             # Claude requires you to enclose the prompt as follows:
             # enclosed_prompt = "Human: " + prompt + "\n\nAssistant:"
-            prompt = "\n\n".join(
-                [f'{"" if (msg["role"] == "system" and model == cls.MODELS["claude-best"]) else ("Human" if msg["role"] != "assistant" else "Assistant")}: {msg["content"]}' for msg in messages] +
-                ["Assistant:"]
-            )
+            # prompt = "\n\n".join(
+            #     [f'{"" if (msg["role"] == "system" and model != cls.MODELS["claude-instant"]) else ("Human" if msg["role"] != "assistant" else "Assistant")}: {msg["content"]}' for msg in messages] +
+            #     ["Assistant:"]
+            # )
 
             if 'temperature' not in kwargs:
                 kwargs['temperature'] = 1
+            system = "\n".join([m['content'] for m in messages if m['role'] == 'system'])
+            other_msgs = cls.consolidate_messages([m for m in messages if m['role'] != 'system'])
+            
             body = {
-                "prompt": prompt,
-                "max_tokens_to_sample": 2048,
+                "system": system,
+                "messages": other_msgs,
+                "max_tokens": 2048,
+                "anthropic_version": "bedrock-2023-05-31",
                 **kwargs
             }
             response = client.invoke_model(
                 modelId=model, body=json.dumps(body)
             )
             response_body = json.loads(response["body"].read())
-            completion = response_body["completion"]
+            completion = response_body["content"][0]["text"]
             return completion
         except ClientError as e:
             logger.exception(f"Couldn't invoke {model}", e)
@@ -729,4 +772,4 @@ def merge_mp3s(mp3_bytes_list):
 # %%
 
 # %%
-    
+

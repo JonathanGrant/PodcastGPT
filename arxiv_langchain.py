@@ -32,7 +32,8 @@ import datetime
 # MAX_TOKENS = 60_000 # GPT4-128k
 MAX_TOKENS = 29_000
 JOIN_NUM_DEFAULT = 300
-DEFAULT_TEXTGEN_MODEL = 'gpt-4-0125-preview'
+# DEFAULT_TEXTGEN_MODEL = 'gpt-4-0125-preview'
+DEFAULT_TEXTGEN_MODEL = "AWS/" + AWSChat.MODELS["claude-3-sonnet"]
 JINGLE_FILE_PATH = 'jazzstep.mp3'
 with open(JINGLE_FILE_PATH, 'rb') as jingle_file:
     JINGLE_AUDIO = jingle_file.read()
@@ -266,8 +267,9 @@ class ArxivRunner:
 
 # +
 MODEL = DEFAULT_TEXTGEN_MODEL
-HOST_VOICES = [OpenAITTS(OpenAITTS.MAN), OpenAITTS(OpenAITTS.WOMAN)]
+# HOST_VOICES = [OpenAITTS(OpenAITTS.MAN), OpenAITTS(OpenAITTS.WOMAN)]
 # HOST_VOICES = [AWSPollyTTS(AWSPollyTTS.MAN), AWSPollyTTS(AWSPollyTTS.WOMAN)]
+HOST_VOICES = get_random_voices()
 PODCAST_ARGS = ("ArxivPodcastGPT", "ArxivPodcastGPT.github.io", "podcasts/ComputerScience/Consolidated/podcast.xml")
 
 def create_large_episode(arxiv_category, limit=5, add_commercials=False):
@@ -342,9 +344,11 @@ def run(arxiv_category, upload=True, limit=5):
 
 # +
 # # %%time
-# sub = 'cs.AI'
+# sub = 'psyarxiv'
 # ep = run(sub, upload=False, limit=1)
 # IPython.display.Audio(merge_mp3s(ep.sounds))
 # -
+
+
 
 
