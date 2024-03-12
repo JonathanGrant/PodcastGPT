@@ -435,8 +435,9 @@ class Chat:
 
 # %%
 class PodcastChat(Chat):
-    def __init__(self, topic, podcast="award winning", max_length=DEFAULT_LENGTH, hosts=['Tom', 'Jen'], host_voices=[AWSPollyTTS(AWSPollyTTS.MAN), OpenAITTS(OpenAITTS.WOMAN)], extra_system=None):
-        system = f"""You are an {podcast} podcast with hosts {hosts[0]} and {hosts[1]}.
+    def __init__(self, topic, podcast="award winning", max_length=DEFAULT_LENGTH, hosts=['Tom', 'Jen'], host_voices=[AWSPollyTTS(AWSPollyTTS.MAN), OpenAITTS(OpenAITTS.WOMAN)], extra_system=None, system=None):
+        if system is None:
+            system = f"""You are an {podcast} podcast with hosts {hosts[0]} and {hosts[1]}.
 Respond with the hosts names before each line like {hosts[0]}: and {hosts[1]}:""".replace("\n", " ")
         if extra_system is not None:
             system = '\n'.join([system, extra_system])
