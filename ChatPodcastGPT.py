@@ -46,6 +46,7 @@ import vertexai
 import vertexai.preview.generative_models
 from mistralai.client import MistralClient
 from mistralai.models.chat_completion import ChatMessage as MistralChatMessage
+import anthropic
 logger = jonlog.getLogger()
 openai.api_key = os.environ.get("OPENAI_KEY", None) or open('/Users/jong/.openai_key').read().strip()
 
@@ -169,22 +170,60 @@ class AWSPollyTTS:
 
 
 # %%
-def get_random_voices(n=2):
-    return random.sample([
-        OpenAITTS(voice_id=vid) for vid in ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']
-    ] + [
-        AWSPollyTTS(voice_id=vid) for vid in ['Kimberly', 'Matthew', 'Amy']
-    ], n)
+from google.cloud import texttospeech_v1 as texttospeech
+
+class GoogleTTS:
+    WOMAN = 'en-US-Wavenet-F'
+    MAN = 'en-US-Wavenet-D'
+    BRIT_WOMAN = 'en-GB-Wavenet-A'
+
+    def __init__(self, voice_name=None):
+        self.client = texttospeech.TextToSpeechClient()
+        self._voice_name = voice_name or self.WOMAN
+
+    # Assuming the RateLimited and retry_with_logging decorators are defined elsewhere
+    @RateLimited(95)
+    @jonlog.retry_with_logging()
+    def tts(self, text):
+        synthesis_input = texttospeech.SynthesisInput(text=text)
+        voice_params = texttospeech.VoiceSelectionParams(
+            language_code=self._voice_name[:5],  # Extracts the language code from the voice name
+            name=self._voice_name,
+            # ssml_gender=texttospeech.SsmlVoiceGender.NEUTRAL
+        )
+        audio_config = texttospeech.AudioConfig(
+            audio_encoding=texttospeech.AudioEncoding.MP3
+        )
+        response = self.client.synthesize_speech(
+            input=synthesis_input,
+            voice=voice_params,
+            audio_config=audio_config
+        )
+        return response.audio_content
+
+    @classmethod
+    def list_voices(cls):
+        data = texttospeech.TextToSpeechClient().list_voices()
+        voices = [
+            v.name for v in data.voices
+            if v.name[:2] == 'en'
+            and 'studio' not in v.name.lower()
+            and 'journey' not in v.name.lower()
+        ]
+        return voices
 
 
 # %%
-# import boto3
+def get_random_voices(n=2, openai=True, aws=True, google=True):
+    possible = []
+    if openai:
+        possible += [OpenAITTS(voice_id=vid) for vid in ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']]
+    if aws:
+        possible += [AWSPollyTTS(voice_id=vid) for vid in ['Kimberly', 'Matthew', 'Amy']]
+    if google:
+        possible += [GoogleTTS(vid) for vid in GoogleTTS.list_voices()]
+    return random.sample(possible, n)
 
-# bedrock = boto3.client(service_name="bedrock", region_name="us-east-1")
-# response = bedrock.list_foundation_models(byProvider="anthropic")
-
-# for summary in response["modelSummaries"]:
-#     print(summary["modelId"])
 
 # %%
 class AWSChat:
@@ -352,6 +391,39 @@ class MistralChat:
 
 
 # %%
+class AnthropicChat:
+    MODELS = {
+        "claude-opus": "claude-3-opus-20240229",   # Large
+        "claude-sonnet": "claude-3-sonnet-20240229", # Medium
+        "claude-haiku": "claude-3-haiku-20240307",  # Small
+    }
+    api_key = os.environ.get("ANTHROPIC_APIKEY") or open('/Users/jong/.anthropic_apikey').read().strip()
+
+    @classmethod
+    def msg(cls, messages=None, model="claude-3-haiku-20240307", **kwargs):
+        messages = MistralChat.consolidate_messages(messages)
+        system = '\n'.join([msg['content'] for msg in messages if msg['role'] == 'system'])
+        messages = [m for m in messages if m['role'] != 'system' and m['content']]
+        if not messages:
+            messages.append({'role': 'user', 'content': 'Continue.'})
+        client = anthropic.Anthropic(api_key=cls.api_key)
+        if 'max_tokens' not in kwargs:
+            kwargs['max_tokens'] = 4096
+        message = client.messages.create(
+            model=model,
+            # max_tokens=4096,
+            messages=messages,
+            system=system,
+            # temperature=0
+            **kwargs,
+        ).content[0].text
+        return message
+
+
+# %%
+# AnthropicChat.msg([{'role': 'user', 'content': 'Give me a list of insane commercial genres'}])
+
+# %%
 # DEFAULT_MODEL = 'gpt-4-1106-preview'
 # DEFAULT_LENGTH  = 80_000
 DEFAULT_MODEL = 'gpt-3.5-turbo'
@@ -410,6 +482,9 @@ class Chat:
         elif model.startswith("MISTRAL/"):
             model = model[8:]
             resp = MistralChat.msg(messages=self._history, model=model, **kwargs)
+        elif model.startswith("ANTHROPIC/"):
+            model = model[10:]
+            resp = AnthropicChat.msg(messages=self._history, model=model, **kwargs)
         else:
             resp = openai.OpenAI(api_key=openai.api_key).chat.completions.create(
                 *args,

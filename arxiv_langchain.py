@@ -30,10 +30,11 @@ from IPython.display import Audio
 import datetime
 
 # MAX_TOKENS = 60_000 # GPT4-128k
-MAX_TOKENS = 29_000
+MAX_TOKENS = 60_000
 JOIN_NUM_DEFAULT = 300
 # DEFAULT_TEXTGEN_MODEL = 'gpt-4-0125-preview'
-DEFAULT_TEXTGEN_MODEL = "AWS/" + AWSChat.MODELS["claude-3-sonnet"]
+# DEFAULT_TEXTGEN_MODEL = "AWS/" + AWSChat.MODELS["claude-3-sonnet"]
+DEFAULT_TEXTGEN_MODEL = "ANTHROPIC/" + AnthropicChat.MODELS["claude-haiku"]
 JINGLE_FILE_PATH = 'jazzstep.mp3'
 with open(JINGLE_FILE_PATH, 'rb') as jingle_file:
     JINGLE_AUDIO = jingle_file.read()
@@ -42,7 +43,7 @@ JINGLE_AUDIO = JINGLE_AUDIO[:len(JINGLE_AUDIO) // 4]  # Shorten to just 4 sec
 
 METAPROMPT_SYSTEM = """You are an award-winning podcast with hosts Tom and Jen. Your podcast investigates research papers
 with intrigue and depth, blending expert analysis with compelling storytelling to illuminate
-cutting-edge discoveries, similar to the style of the Darknet Diaries podcast.
+cutting-edge discoveries.
 
 Here is the title of the research paper you will be discussing in this episode:
 
@@ -108,6 +109,125 @@ complex topics in an intuitive way. The episode should be informative, entertain
 detailed - a systematic and narrative review of the research paper.
 </answer>"""
 
+SHORT_SYSTEM = """You are an award-winning podcast with hosts Tom and Jen.
+Your podcast has {style} commercials relevant to the paper you just covered.
+
+<format>
+Format the entire podcast commercial transcript with Tom: and Jen: before each line to indicate which host is
+speaking. Use line breaks and paragraph spacing to clearly distinguish between different sections
+and ideas.
+</format>"""
+COMMERCIAL_STYLES = [
+    "insane",
+    "multi-dimensional",
+    "star wars",
+    "medieval fantasy",
+    "AGI themed",
+    "kitchen gadget",
+    "get rich quick scheme",
+    "bizarre sports training equipment",
+    "retro-futurism",
+    "underwater cities",
+    "space colonization",
+    "time travel adventures",
+    "cyberpunk gadgets",
+    "steampunk inventions",
+    "utopian societies",
+    "dystopian futures",
+    "virtual reality experiences",
+    "augmented reality tools",
+    "eco-friendly innovations",
+    "survival gear for the apocalypse",
+    "alien technology",
+    "superhero gadgets",
+    "magical artifacts",
+    "historical reenactments",
+    "luxury lifestyle",
+    "minimalist living",
+    "smart home devices",
+    "extreme sports equipment",
+    "pet care innovations",
+    "health and wellness gadgets",
+    "beauty and personal care inventions",
+    "fashion and style trends",
+    "food and beverage innovations",
+    "art and design tools",
+    "music and entertainment technology",
+    "travel and adventure gear",
+    "educational tools and toys",
+    "gaming and esports equipment",
+    "automotive and transportation innovations",
+    "agricultural and gardening innovations",
+    "construction and DIY tools",
+    "safety and security gadgets",
+    "finance and investment tools",
+    "social networking innovations",
+    "news and media trends",
+    "philanthropy and social impact",
+    "spirituality and mindfulness",
+    "cultural and ethnic heritage",
+    "sci-fi and fantasy gadgets",
+    "mythological creatures and worlds",
+    "ancient civilizations and technologies",
+    "parallel universes",
+    "mystery and detective gear",
+    "horror and thriller themes",
+    "romantic and relationship aids",
+    "comedy and satire products",
+    "children's toys and games",
+    "teen lifestyle and gadgets",
+    "elderly care innovations",
+    "healthcare and medical devices",
+    "space exploration tools",
+    "underground living",
+    "floating cities",
+    "digital nomad gadgets",
+    "off-grid living essentials",
+    "extreme weather gear",
+    "wildlife and nature exploration",
+    "ocean exploration technologies",
+    "mountain climbing equipment",
+    "desert survival gear",
+    "polar exploration tools",
+    "jungle survival equipment",
+    "urban living innovations",
+    "rural living essentials",
+    "fantasy sports and leagues",
+    "reality bending devices",
+    "memory enhancement tools",
+    "intelligence augmentation",
+    "emotional wellbeing gadgets",
+    "interdimensional travel devices",
+    "quantum computing applications",
+    "nano-technology gadgets",
+    "biotechnology innovations",
+    "genetic engineering kits",
+    "robotics and automation",
+    "artificial intelligence applications",
+    "blockchain and cryptocurrency tools",
+    "virtual worlds and metaverses",
+    "cyberspace security",
+    "ethical hacking tools",
+    "spy and surveillance gadgets",
+    "military and defense innovations",
+    "peacekeeping and conflict resolution",
+    "disaster relief and recovery",
+    "sustainable living solutions",
+    "renewable energy gadgets",
+    "waste management innovations",
+    "water purification technologies",
+    "air quality improvement devices",
+    "soil regeneration and protection",
+    "wildlife conservation tools",
+    "climate change mitigation",
+    "space debris management",
+    "asteroid mining technologies",
+    "universal translation devices",
+    "teleportation technologies",
+    "anti-gravity devices",
+    "time manipulation gadgets"
+]
+
 
 def clean_text(text):
     # Remove References Section
@@ -136,6 +256,12 @@ class PDFEpisode(Episode):
         self.join_num = JOIN_NUM_DEFAULT
         if 'podcast_args' in self._kwargs: self._kwargs.pop('podcast_args')
         super().__init__(topic=self.topic, **kwargs)
+
+    @classmethod
+    def from_file(cls, filepath, *args, **kwargs):
+        ep = cls(*args, **kwargs)
+        ep.data = ep.process_pdf(filepath)
+        return ep
 
     def parse_pdf(self, file):
         """Parse a PDF and extract the text."""
@@ -194,7 +320,7 @@ Respond with the hosts names before each line like {self.chat._hosts[0]}: and {s
         # chat._history.pop(2)
         # chat._history[0]['content'] = chat._history[0]['content'][:len(chat._history[0]['content']) - len(extra_system)]
         system = chat._history[0]['content']
-        chat._history[0]['content'] = system.split('And here is the full text of the paper:', 1)[0] + system.split('</paper_text>', 1)[1]
+        chat._history[0]['content'] = SHORT_SYSTEM.format(style=random.choice(COMMERCIAL_STYLES))
         print(f"{len(system)=} {len(chat._history[0]['content'])=}")
         com_msg, com_aud = chat.step(msg="Generate a funny, weird, and concise commercial for a company that now exists as a result of this paper.", model=self.model, ret_aud=True)
         msg = '\n'.join([msg, com_msg])
@@ -341,7 +467,7 @@ class ArxivRunner:
 # +
 MODEL = DEFAULT_TEXTGEN_MODEL
 # HOST_VOICES = [OpenAITTS(OpenAITTS.MAN), OpenAITTS(OpenAITTS.WOMAN)]
-# HOST_VOICES = [AWSPollyTTS(AWSPollyTTS.MAN), AWSPollyTTS(AWSPollyTTS.WOMAN)]
+# HOST_VOICES = [GoogleTTS(GoogleTTS.MAN), GoogleTTS(GoogleTTS.WOMAN)]
 HOST_VOICES = get_random_voices()
 PODCAST_ARGS = ("ArxivPodcastGPT", "ArxivPodcastGPT.github.io", "podcasts/ComputerScience/Consolidated/podcast.xml")
 
@@ -395,7 +521,8 @@ def get_title(texts):
     chat = Chat("Return just simple plaintext.")
     return chat.message(
         "Given the following papers, write a clickbait title that captures all of them. " + 
-        ", ".join(txt.split(' Title ')[-1] for txt in texts)
+        ", ".join(txt.split(' Title ')[-1] for txt in texts),
+        model=DEFAULT_TEXTGEN_MODEL
     )
 
 
@@ -415,11 +542,47 @@ def run(arxiv_category, upload=True, limit=5):
         ep.upload(f'{datetime.datetime.now():%Y-%m-%d} {arxiv_category}: {get_title(texts)}', '\n\n'.join(texts))
     return ep
 
+
+# -
+
+# Drive podcast episode with custom list of PDFs
+def episode_with_pdfs(dirname, upload=None):
+    papers = os.listdir(dirname)
+    audios, texts = [], []
+    for i, paper in enumerate(papers):
+        logger.info(f"{i=}/{len(papers)} Working on {paper=}")
+        title = os.path.splitext(paper)[0]
+        path = os.path.join(dirname, paper)
+
+        try:
+            ep = PDFEpisode.from_file(path, title, model=MODEL, podcast_args=PODCAST_ARGS, host_voices=HOST_VOICES)
+            outline, txt = ep.step()
+            logger.info(f"Got outline: {outline[:100]}")
+        except Exception as e:
+            logger.exception(f"Error processing paper {paper=}: {e=}")
+            continue
+
+        audios.append(merge_mp3s(ep.sounds))
+        audios.append(JINGLE_AUDIO)
+        arxiv_title = re.sub('[^0-9a-zA-Z]+', ' ', title)
+        texts.append(f'ChatGPT generated podcast using model={MODEL} for {title}')
+        logger.info(texts[-1])
+
+    ep = AudioCompletedEpisode(audios, podcast_args=PODCAST_ARGS)
+    if upload is not None:
+        ep.upload(f'{datetime.datetime.now():%Y-%m-%d} {upload}: {get_title(texts)}', '\n\n'.join(texts))
+    return ep
+
 # +
 # # %%time
-# sub = 'cs.GT'
-# ep = run(sub, upload=False, limit=1)
-# IPython.display.Audio(merge_mp3s(ep.sounds))
+# # sub = 'cs.AI'
+# for sub in ['psyarxiv']:
+#     ep = run(sub, upload=True, limit=5)
+# # IPython.display.Audio(merge_mp3s(ep.sounds))
+
+# # d = '/Users/jong/Documents/PodPapers/Conciousness'
+# # ep = episode_with_pdfs(d)
+# # IPython.display.Audio(merge_mp3s(ep.sounds))
 # -
 
 

@@ -13,5 +13,6 @@ pydub
 boto3
 mistralai
 google-cloud-aiplatform
+google-cloud-texttospeech
 lxml
 pytz
