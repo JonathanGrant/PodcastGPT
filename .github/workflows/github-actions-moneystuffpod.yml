@@ -11,6 +11,7 @@ jobs:
       OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
       GH_KEY: ${{ secrets.GH_KEY }}
       MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+      ANTHROPIC_APIKEY: ${{ secrets.ANTHROPIC_APIKEY }}
     steps:
       # Step 1: Checkout the repository
       - name: Checkout code
