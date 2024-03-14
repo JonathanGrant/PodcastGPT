@@ -49,6 +49,7 @@ from mistralai.models.chat_completion import ChatMessage as MistralChatMessage
 import anthropic
 logger = jonlog.getLogger()
 openai.api_key = os.environ.get("OPENAI_KEY", None) or open('/Users/jong/.openai_key').read().strip()
+os.environ['GOOGLE_CLOUD_PROJECT'] = 'summer2023-392312'
 
 
 # %%

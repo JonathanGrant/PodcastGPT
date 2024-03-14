@@ -28,6 +28,7 @@ import retrying
 import random
 from IPython.display import Audio
 import datetime
+from urllib.parse import unquote
 
 # MAX_TOKENS = 60_000 # GPT4-128k
 MAX_TOKENS = 60_000
@@ -438,6 +439,8 @@ class ArxivRunner:
     def get_top(self):
         """Retrieve top Arxiv entries based on category."""
         if self.category == 'psyarxiv': return self.get_top_psyarxiv()
+        if self.category == 'osf': return self.get_top_osf()
+        if self.category == 'econpapers': return self.get_top_econpapers()
         url = f'https://arxiv.org/list/{self.category}/recent'
         print(url)
         html = requests.get(url).content
@@ -462,6 +465,32 @@ class ArxivRunner:
         data = requests.get(url, headers={'Accept': 'application/vnd.api+json'}).json()
         data = [x for x in data['included'] if x["type"] == "index-card"]
         return [(f"{x['attributes']['resourceIdentifier'][0]}/download/", x['attributes']['resourceMetadata']['title'][0]['@value']) for x in data]
+
+    def get_top_osf(self):
+        url = 'https://share.osf.io/api/v3/index-card-search?cardSearchFilter%5BresourceType%5D=Preprint&cardSearchFilter%5BaccessService%5D=https%3A%2F%2Fosf.io%2F&cardSearchText%5B*%2Ccreator.name%2CisContainedBy.creator.name%5D=&page%5Bcursor%5D=&page%5Bsize%5D=100&sort=-dateCreated'
+        print(url)
+        data = requests.get(url, headers={'Accept': 'application/vnd.api+json'}).json()
+        data = [x for x in data['included'] if x["type"] == "index-card"]
+        return [(f"{x['attributes']['resourceIdentifier'][0]}/download/", x['attributes']['resourceMetadata']['title'][0]['@value']) for x in data]
+    
+    def get_top_econpapers(self):
+        base_url = 'https://econpapers.repec.org/'
+        url = base_url + "scripts/search.pf?ft=&adv=true&wp=on&pl=&auth=on&online=on&sort=rank&lgc=AND&aus=&ar=on&kw=&jel=&nep=&ni=1+day&nit=epdate"
+        print(url)
+        html = requests.get(url).content
+        soup = BeautifulSoup(html, 'html.parser')
+        paper_links = [x for x in soup.find_all('a') if x['href'].startswith('/paper/') and x['href'].endswith('.htm')]
+        data = []
+        for link in paper_links:
+            title = link.text
+            url = base_url + link['href']
+            html = requests.get(url).content
+            soup = BeautifulSoup(html, 'html.parser')
+            x = soup.find('b', text='Downloads:')
+            paper_url = x.parent.find('a').text
+            data.append((paper_url, title))
+            if len(data) >= self.limit * 2: break
+        return data
 
 
 # +
@@ -534,6 +563,7 @@ class AudioCompletedEpisode(Episode):
 
 # +
 arxiv_categories = ["AI", "CL", "CC", "CE", "CG", "GT", "CV", "CY", "CR", "DS", "DB", "DL", "DM", "DC", "ET", "FL", "GL", "GR", "AR", "HC", "IR", "IT", "LO", "LG", "MS", "MA", "MM", "NI", "NE", "NA", "OS", "OH", "PF", "PL", "RO", "SI", "SE", "SD", "SC", "SY"]
+other_categories = ['econpapers', 'psyarxiv']
 
 def run(arxiv_category, upload=True, limit=5):
     audios, texts = create_large_episode(arxiv_category, limit=limit)
@@ -575,14 +605,13 @@ def episode_with_pdfs(dirname, upload=None):
 
 # +
 # # %%time
-# # sub = 'cs.AI'
-# for sub in ['psyarxiv']:
-#     ep = run(sub, upload=True, limit=5)
-# # IPython.display.Audio(merge_mp3s(ep.sounds))
+# sub = 'osf'
+# ep = run(sub, upload=True, limit=5)
+# IPython.display.Audio(merge_mp3s(ep.sounds))
 
-# # d = '/Users/jong/Documents/PodPapers/Conciousness'
-# # ep = episode_with_pdfs(d)
-# # IPython.display.Audio(merge_mp3s(ep.sounds))
+# # # d = '/Users/jong/Documents/PodPapers/Conciousness'
+# # # ep = episode_with_pdfs(d)
+# # # IPython.display.Audio(merge_mp3s(ep.sounds))
 # -
 
 
