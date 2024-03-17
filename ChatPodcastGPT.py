@@ -232,6 +232,7 @@ class AWSChat:
         "claude-instant": "anthropic.claude-instant-v1",
         "claude-best": "anthropic.claude-v2:1",
         "claude-3-sonnet": "anthropic.claude-3-sonnet-20240229-v1:0",
+        "claude-3-haiku": "anthropic.claude-3-haiku-20240307-v1:0",
     }
 
     
@@ -679,12 +680,14 @@ class PodcastRSSFeed:
         parent_map = {c:p for p in root.iter() for c in p}
         token = os.environ.get("GH_KEY", None) or open("/Users/jong/.gh_token").read().strip()
         gh = Github(token)
+        made_changes = False
         for episode in root.findall('./channel/item'):
             pub_date = dt.datetime.strptime(episode.find('pubDate').text, '%a, %d %b %Y %H:%M:%S %Z')  # RSS date format
             if now - pub_date > limit:
                 episode_path = episode.find('enclosure').attrib['url'].split('.github.io/', 1)[1]
                 logger.info(f"Deleting old episode: {episode_path}")
                 parent_map[episode].remove(episode)
+                made_changes = True
                 # Get the repository
                 try:
                     repo = gh.get_user().get_repo(self.repo)
@@ -699,6 +702,13 @@ class PodcastRSSFeed:
         pretty_xml = minidom.parseString(ET.tostring(root)).toprettyxml(indent='  ')
         # Remove extra newlines
         pretty_xml = os.linesep.join([s for s in pretty_xml.splitlines() if s.strip()])
+        # Upload
+        if made_changes:
+            try:
+                podcast_xml_sha = repo.get_contents(self.xml_path).sha
+                self.upload_to_github(self.xml_path, pretty_xml, f'Delete old episodes in podcast.xml', podcast_xml_sha)
+            except Exception as e:
+                logger.exception(e)
         return pretty_xml
     
     def upload_episode(self, file_path, file_name, episode_title, episode_description):
