@@ -475,7 +475,7 @@ class ArxivRunner:
     
     def get_top_econpapers(self):
         base_url = 'https://econpapers.repec.org/'
-        url = base_url + "scripts/search.pf?ft=&adv=true&wp=on&pl=&auth=on&online=on&sort=rank&lgc=AND&aus=&ar=on&kw=&jel=&nep=&ni=1+day&nit=epdate"
+        url = base_url + "scripts/search.pf?ft=&adv=true&wp=on&pl=&auth=on&online=on&sort=rank&lgc=AND&aus=&ar=on&kw=&jel=&nep=&ni=7+day&nit=epdate"
         print(url)
         html = requests.get(url).content
         soup = BeautifulSoup(html, 'html.parser')
