@@ -44,8 +44,5 @@ jobs:
       # Repeat Step 4 for other categories
       - name: Run arxiv script for osf
         run: python -c 'from arxiv_langchain import run; run("osf")' || echo fail
-
-      - name: Run arxiv script for econpapers
-        run: python -c 'from arxiv_langchain import run; run("econpapers")' || echo fail
       - name: Run arxiv script for q-fin
         run: python -c 'from arxiv_langchain import run; run("q-fin")' || echo fail
