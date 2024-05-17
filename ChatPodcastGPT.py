@@ -57,7 +57,7 @@ try:
         from tqdm.notebook import tqdm
     else:
         from tqdm import tqdm
-except ImportError:
+except:
     from tqdm import tqdm
 
 logger = jonlog.getLogger()
