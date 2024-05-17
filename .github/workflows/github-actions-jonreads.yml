@@ -12,6 +12,7 @@ jobs:
       GH_KEY: ${{ secrets.GH_KEY }}
       MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
       ANTHROPIC_APIKEY: ${{ secrets.ANTHROPIC_APIKEY }}
+      TOGETHER_API_KEY: ${{ secrets.TOGETHER_API_KEY }}
     steps:
       # Step 1: Checkout the repository
       - name: Checkout code
