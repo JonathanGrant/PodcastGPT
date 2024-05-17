@@ -34,14 +34,14 @@ from urllib.parse import unquote
 MAX_TOKENS = 60_000
 JOIN_NUM_DEFAULT = 300
 # DEFAULT_TEXTGEN_MODEL = 'gpt-4-0125-preview'
-# DEFAULT_TEXTGEN_MODEL = "AWS/" + AWSChat.MODELS["claude-3-sonnet"]
+# DEFAULT_TEXTGEN_MODEL = "GOOGLE/" + GoogleChat.MODELS["gemini-1.5-flash"]
 DEFAULT_TEXTGEN_MODEL = "ANTHROPIC/" + AnthropicChat.MODELS["claude-haiku"]
 JINGLE_FILE_PATH = 'jazzstep.mp3'
 with open(JINGLE_FILE_PATH, 'rb') as jingle_file:
     JINGLE_AUDIO = jingle_file.read()
 JINGLE_AUDIO = JINGLE_AUDIO[:len(JINGLE_AUDIO) // 4]  # Shorten to just 4 sec
-# -
 
+# + jupyter={"source_hidden": true}
 METAPROMPT_SYSTEM = """You are an award-winning podcast with hosts Tom and Jen. Your podcast investigates research papers
 with intrigue and depth, blending expert analysis with compelling storytelling to illuminate
 cutting-edge discoveries.
@@ -98,9 +98,8 @@ with something to ponder.
 </conclusion>
 
 <format>
-Format the entire podcast transcript with Tom: and Jen: before each line to indicate which host is
-speaking. Use line breaks and paragraph spacing to clearly distinguish between different sections
-and ideas.
+YOU ABSOLUTELY MUST respond with the HOST NAME BEFORE EVERY LINE like \nTom: ...\nJen: ...
+Use plenty of line breaks and paragraph spacing to clearly distinguish between different sections and ideas.
 </format>
 
 <answer>
@@ -110,13 +109,13 @@ complex topics in an intuitive way. The episode should be informative, entertain
 detailed - a systematic and narrative review of the research paper.
 </answer>"""
 
+# + jupyter={"source_hidden": true}
 SHORT_SYSTEM = """You are an award-winning podcast with hosts Tom and Jen.
 Your podcast has {style} commercials relevant to the paper you just covered.
 
 <format>
-Format the entire podcast commercial transcript with Tom: and Jen: before each line to indicate which host is
-speaking. Use line breaks and paragraph spacing to clearly distinguish between different sections
-and ideas.
+YOU ABSOLUTELY MUST respond with the HOST NAME BEFORE EVERY LINE like \nTom: ...\nJen: ...
+Use plenty of line breaks and paragraph spacing to clearly distinguish between different sections and ideas.
 </format>"""
 COMMERCIAL_STYLES = [
     "insane",
@@ -230,6 +229,8 @@ COMMERCIAL_STYLES = [
 ]
 
 
+# -
+
 def clean_text(text):
     # Remove References Section
     text = re.sub(r'\bReferences?\b.*', '', text, flags=re.DOTALL|re.IGNORECASE)
@@ -312,7 +313,8 @@ Tell the story of the paper completely, in full verbose detail, as a single resp
 Emphasize strong narrative storytelling.
 Assume the listener doesn't know anything.
 Afterwards, give your personal reflections on the paper and its broader relevance.
-Respond with the hosts names before each line like {self.chat._hosts[0]}: and {self.chat._hosts[1]}:
+
+YOU ABSOLUTELY MUST respond with the HOST NAME BEFORE EVERY LINE like \nTom: ...\nJen: ...
 """
         # chat = PodcastChat(**{**self._kwargs, 'topic': self.title, 'extra_system': extra_system})
         chat = PodcastChat(**{**self._kwargs, 'system': METAPROMPT_SYSTEM.format(PAPER_TITLE=self.title, ENTIRE_PAPER_TEXT=chat_msg), 'topic': self.title})
@@ -449,8 +451,8 @@ class ArxivRunner:
         
         for item in soup.find_all('dt'):
             title = item.find_next_sibling('dd').find('div', class_='list-title').text.replace('Title:', '').strip()
-            identifier = item.find('span', class_='list-identifier').a.text
-            pdf_link = 'https://arxiv.org' + item.find('span', class_='list-identifier').find('a', title='Download PDF')['href']
+            identifier = item.find(title='Abstract')['id']
+            pdf_link = 'https://arxiv.org' + item.find('a', title='Download PDF')['href']
         
             articles.append({
                 'title': title,
@@ -604,14 +606,14 @@ def episode_with_pdfs(dirname, upload=None):
     return ep
 
 # +
-# # %%time
-# sub = 'osf'
-# ep = run(sub, upload=True, limit=5)
+# # # %%time
+# sub = 'cs.AI'
+# ep = run(sub, upload=False, limit=1)
 # IPython.display.Audio(merge_mp3s(ep.sounds))
 
-# # # d = '/Users/jong/Documents/PodPapers/Conciousness'
-# # # ep = episode_with_pdfs(d)
-# # # IPython.display.Audio(merge_mp3s(ep.sounds))
+# # # # d = '/Users/jong/Documents/PodPapers/Conciousness'
+# # # # ep = episode_with_pdfs(d)
+# # # # IPython.display.Audio(merge_mp3s(ep.sounds))
 # -
 
 

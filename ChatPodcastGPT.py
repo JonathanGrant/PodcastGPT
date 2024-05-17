@@ -42,11 +42,24 @@ import requests
 from bs4 import BeautifulSoup
 import boto3
 from botocore.exceptions import ClientError
+import requests
 import vertexai
 import vertexai.preview.generative_models
 from mistralai.client import MistralClient
 from mistralai.models.chat_completion import ChatMessage as MistralChatMessage
 import anthropic
+import groq
+import google.generativeai
+
+try:
+    from IPython import get_ipython
+    if 'IPKernelApp' in get_ipython().config:
+        from tqdm.notebook import tqdm
+    else:
+        from tqdm import tqdm
+except ImportError:
+    from tqdm import tqdm
+
 logger = jonlog.getLogger()
 openai.api_key = os.environ.get("OPENAI_KEY", None) or open('/Users/jong/.openai_key').read().strip()
 os.environ['GOOGLE_CLOUD_PROJECT'] = 'summer2023-392312'
@@ -145,6 +158,10 @@ class OpenAITTS:
         )
         return response.content
 
+    def tostring(self): return f"[OpenAITTS] {self.voice=} {self.model=}"
+    def __repr__(self): return self.tostring()
+    def __str__(self): return self.tostring()
+
 
 # %%
 class AWSPollyTTS:
@@ -158,12 +175,16 @@ class AWSPollyTTS:
 
     @RateLimited(95)
     @jonlog.retry_with_logging()
-    def tts(self, text):
+    def tts(self, text, ssml=False):
+        kwargs = {}
+        if ssml:
+            kwargs['TextType'] = 'ssml'
         response = self.client.synthesize_speech(
             Text=text,
             OutputFormat='mp3',
             VoiceId=self._voice_id,
             Engine="neural",
+            **kwargs,
         )
         # The audio stream containing the synthesized speech
         audio_stream = response.get('AudioStream')
@@ -186,20 +207,24 @@ class GoogleTTS:
     @RateLimited(95)
     @jonlog.retry_with_logging()
     def tts(self, text):
-        synthesis_input = texttospeech.SynthesisInput(text=text)
-        voice_params = texttospeech.VoiceSelectionParams(
-            language_code=self._voice_name[:5],  # Extracts the language code from the voice name
-            name=self._voice_name,
-            # ssml_gender=texttospeech.SsmlVoiceGender.NEUTRAL
-        )
-        audio_config = texttospeech.AudioConfig(
-            audio_encoding=texttospeech.AudioEncoding.MP3
-        )
-        response = self.client.synthesize_speech(
-            input=synthesis_input,
-            voice=voice_params,
-            audio_config=audio_config
-        )
+        try:
+            synthesis_input = texttospeech.SynthesisInput(text=text)
+            voice_params = texttospeech.VoiceSelectionParams(
+                language_code=self._voice_name[:5],  # Extracts the language code from the voice name
+                name=self._voice_name,
+                # ssml_gender=texttospeech.SsmlVoiceGender.NEUTRAL
+            )
+            audio_config = texttospeech.AudioConfig(
+                audio_encoding=texttospeech.AudioEncoding.MP3
+            )
+            response = self.client.synthesize_speech(
+                input=synthesis_input,
+                voice=voice_params,
+                audio_config=audio_config
+            )
+        except:
+            logger.critical(f"GoogleTTS error from {text=}")
+            raise
         return response.audio_content
 
     @classmethod
@@ -212,6 +237,10 @@ class GoogleTTS:
             and 'journey' not in v.name.lower()
         ]
         return voices
+
+    def tostring(self): return f"[GoogleTTS] {self._voice_name=}"
+    def __repr__(self): return self.tostring()
+    def __str__(self): return self.tostring()
 
 
 # %%
@@ -264,7 +293,7 @@ class AWSChat:
         return consolidated
 
     @classmethod
-    def msg(cls, messages=None, model="anthropic.claude-3-sonnet-20240229-v1:0", **kwargs):
+    def msg(cls, messages=None, model="anthropic.claude-3-haiku-20240307-v1:0", **kwargs):
         client = boto3.client(service_name="bedrock-runtime", region_name="us-east-1")
         try:
             # The different model providers have individual request and response formats.
@@ -305,7 +334,12 @@ class AWSChat:
 class GoogleChat:
     MODELS = {
         "gemini-pro": "gemini-pro",
+        "gemini-1.5-flash": "gemini-1.5-flash-latest",
     }
+
+    @classmethod
+    def get_apikey(cls):
+        return os.environ.get("GEMINI_API_KEY") or open(os.path.expanduser("~/.google_apikey")).read().strip()
 
     @classmethod
     def consolidate_messages(cls, message_list):
@@ -328,21 +362,55 @@ class GoogleChat:
                     consolidated.append({"role": current_role, "content": current_content})
                 current_content = content
                 current_role = role
-    
+
         if current_role is not None:
             consolidated.append({"role": current_role, "content": current_content})
     
         return consolidated
 
     @classmethod
-    def msg(cls, messages=None, model="gemini-pro", **kwargs):
-        vertexai.init(project='summer2023-392312', location='us-central1')
-        model = vertexai.preview.generative_models.GenerativeModel(model)
-        contents = [vertexai.generative_models._generative_models.Content(
-            role="user" if msg["role"] != "assistant" else "model",
-            parts=[vertexai.generative_models._generative_models.Part.from_text(msg["content"])]
-        ) for msg in cls.consolidate_messages(messages)]
-        response = model.generate_content(contents=contents)
+    def msg(cls, messages=None, model_name="gemini-1.5-flash-latest", **kwargs):
+        google.generativeai.configure(api_key=cls.get_apikey())
+        
+        # Create the model configuration
+        generation_config = {
+            "temperature": 1,
+            "top_p": 0.95,
+            "top_k": 64,
+            "max_output_tokens": 8192,
+            "response_mime_type": "text/plain",
+        }
+        # generation_config.update(kwargs)
+        safety_settings = [
+            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+        ]
+        
+        # Initialize the model
+        model = google.generativeai.GenerativeModel(
+            model_name=model_name,
+            safety_settings=safety_settings,
+            generation_config=generation_config,
+        )
+        
+        # Consolidate messages
+        consolidated_messages = cls.consolidate_messages(messages)
+        final_msg = "Continue"
+        if consolidated_messages[-1]['role'] == 'user':
+            final_msg = consolidated_messages.pop(-1)['content']
+        # Create chat session history
+        history = []
+        for msg in consolidated_messages:
+            history.append({
+                "role": "user" if msg["role"] != "assistant" else "model",
+                "parts": [msg["content"]]
+            })
+        # Start chat session
+        chat_session = model.start_chat(history=history)
+        # Send message and get response
+        response = chat_session.send_message(final_msg)
         return response.text
 
 
@@ -352,7 +420,10 @@ class MistralChat:
         "mistral-medium": "mistral-medium",
         "mistral-small": "mistral-small",
     }
-    api_key = os.environ.get("MISTRAL_API_KEY") or open('/Users/jong/.mistral_apikey').read().strip()
+
+    @classmethod
+    def get_apikey(cls):
+        return os.environ.get("MISTRAL_API_KEY") or open('/Users/jong/.mistral_apikey').read().strip()
 
     @classmethod
     def consolidate_messages(cls, message_list):
@@ -382,7 +453,7 @@ class MistralChat:
 
     @classmethod
     def msg(cls, messages=None, model="mistral-medium", **kwargs):
-        client = MistralClient(api_key=cls.api_key)
+        client = MistralClient(api_key=cls.get_apikey())
         if not any(msg['role'] == 'user' for msg in messages):
             messages[-1]['role'] = 'user'
         chat_response = client.chat(
@@ -399,7 +470,10 @@ class AnthropicChat:
         "claude-sonnet": "claude-3-sonnet-20240229", # Medium
         "claude-haiku": "claude-3-haiku-20240307",  # Small
     }
-    api_key = os.environ.get("ANTHROPIC_APIKEY") or open('/Users/jong/.anthropic_apikey').read().strip()
+
+    @classmethod
+    def get_apikey(cls):
+        return os.environ.get("ANTHROPIC_APIKEY") or open('/Users/jong/.anthropic_apikey').read().strip()
 
     @classmethod
     def msg(cls, messages=None, model="claude-3-haiku-20240307", **kwargs):
@@ -408,7 +482,7 @@ class AnthropicChat:
         messages = [m for m in messages if m['role'] != 'system' and m['content']]
         if not messages:
             messages.append({'role': 'user', 'content': 'Continue.'})
-        client = anthropic.Anthropic(api_key=cls.api_key)
+        client = anthropic.Anthropic(api_key=cls.get_apikey())
         if 'max_tokens' not in kwargs:
             kwargs['max_tokens'] = 4096
         message = client.messages.create(
@@ -423,7 +497,76 @@ class AnthropicChat:
 
 
 # %%
-# AnthropicChat.msg([{'role': 'user', 'content': 'Give me a list of insane commercial genres'}])
+class GroqChat:
+    MODELS = {
+        "llama3": "Llama3-70b-8192",
+        "mixtral": "Mixtral-8x7b-32768",
+    }
+
+    @classmethod
+    def get_apikey(cls):
+        return os.environ.get("GROQ_APIKEY") or open('/Users/jong/.groq_apikey').read().strip()
+
+    @classmethod
+    def msg(cls, messages=None, model="Mixtral-8x7b-32768", **kwargs):
+        messages = MistralChat.consolidate_messages(messages)
+        system = '\n'.join([msg['content'] for msg in messages if msg['role'] == 'system'])
+        messages = [m for m in messages if m['role'] != 'system' and m['content']]
+        if not messages:
+            messages.append({'role': 'user', 'content': 'Continue.'})
+        messages = [{'role': 'system', 'content': system}] + messages
+
+        client = groq.Groq(api_key=cls.get_apikey())
+        message = client.chat.completions.create(
+            messages=messages,
+            model=model,
+        ).choices[0].message.content
+        
+        return message
+
+
+# %%
+class TogetherChat:
+    MODELS = {
+        "mixtral": "mistralai/Mixtral-8x22B-Instruct-v0.1",
+        "qwen": "Qwen/Qwen1.5-110B-Chat",
+        "databricks": "databricks/dbrx-instruct",
+        "dolphin": "cognitivecomputations/dolphin-2.5-mixtral-8x7b",
+    }
+
+    @classmethod
+    def get_apikey(cls):
+        return api_key=os.environ.get("TOGETHER_API_KEY") or open(os.path.expanduser("~/.together_apikey")).read().strip()
+
+    @classmethod
+    def msg(cls, messages=None, model=None, **kwargs):
+        if model is None:
+            model = random.choice(cls.MODELS.values())
+        # Prepare the messages for the API
+        consolidated_messages = GoogleChat.consolidate_messages(messages)
+        # Prepare the messages for the API
+        api_messages = [{"role": msg["role"], "content": msg["content"]} for msg in consolidated_messages]
+        # Define the payload
+        payload = {
+            "model": model,
+            "messages": api_messages,
+            "temperature": kwargs.get("temperature", 0.8),
+            "max_tokens": kwargs.get("max_tokens", 8000)
+        }
+        # Make the request to Together API
+        headers = {
+            "Authorization": f"Bearer {cls.api_key}",
+            "Content-Type": "application/json"
+        }
+        response = requests.post("https://api.together.xyz/v1/chat/completions", headers=headers, json=payload)
+        # Parse the response
+        response_data = response.json()
+        return response_data["choices"][0]["message"]["content"]
+
+
+# %%
+# TogetherChat.msg([{'role': 'system', 'content': 'Give me a list of insane commercial genres'}])
+# # !pip install -U together
 
 # %%
 # DEFAULT_MODEL = 'gpt-4-1106-preview'
@@ -436,12 +579,15 @@ class Chat:
         GPT3_5 = "gpt-3.5-turbo"
         GPT_4  = "gpt-4-turbo-preview"
 
-    def __init__(self, system, max_length=DEFAULT_LENGTH):
+    def __init__(self, system, max_length=DEFAULT_LENGTH, default_model=None, messages=None):
         self._system = system
         self._max_length = max_length
+        self._default_model = default_model
         self._history = [
             {"role": "system", "content": self._system},
         ]
+        if messages:
+            self._history += messages
 
     @classmethod
     def num_tokens_from_text(cls, text, model=DEFAULT_MODEL):
@@ -470,7 +616,10 @@ class Chat:
         return num_tokens
 
     @retrying.retry(stop_max_attempt_number=5, wait_fixed=2000)
-    def _msg(self, *args, model=DEFAULT_MODEL, **kwargs):
+    def _msg(self, *args, model=None, **kwargs):
+        if model is None:
+            if self._default_model is not None: model = self._default_model 
+            else: model = DEFAULT_MODEL
         logger.info(f'requesting chatcompletion {model=}...')
         if model.startswith("AWS/"):
             model = model[4:]
@@ -487,6 +636,12 @@ class Chat:
         elif model.startswith("ANTHROPIC/"):
             model = model[10:]
             resp = AnthropicChat.msg(messages=self._history, model=model, **kwargs)
+        elif model.startswith("GROQ/"):
+            model = model[5:]
+            resp = GroqChat.msg(messages=self._history, model=model, **kwargs)
+        elif model.startswith("TOGETHER/"):
+            model = model[9:]
+            resp = TogetherChat.msg(messages=self._history, model=model, **kwargs)
         else:
             resp = openai.OpenAI(api_key=openai.api_key).chat.completions.create(
                 *args,
@@ -843,6 +998,29 @@ def merge_mp3s(mp3_bytes_list):
     combined_buffer = io.BytesIO()
     combined.export(combined_buffer, format="mp3")
     return combined_buffer.getvalue()
+
+
+# %%
+class AIChain:
+    @classmethod
+    def serial_message(cls, chat=None, msgs=None, systems=None):
+        responses = []
+        systems = systems or [None] * len(msgs)
+        for msg, sys in tqdm(zip(msgs, systems), total=len(msgs), desc="Processing serial chat messages.", unit="message"):
+            if sys is not None:
+                chat._history[0]['content'] = sys
+            responses.append(chat.message(next_msg=msg))
+        return responses
+
+    @classmethod
+    def parallel_message(cls, chats=None, msgs=None, max_workers=8):
+        assert len(chats) == len(msgs), "Lengths of chats and msgs must match."
+        responses = [None] * len(chats)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as tpe:
+            futures2idx = {tpe.submit(chat.message, next_msg=msg): i for i, chat, msg in zip(range(9**99), chats, msgs)}
+            for future in tqdm(concurrent.futures.as_completed(futures2idx.keys()), total=len(futures2idx), desc="Processing parallel chats", unit="chat"):
+                responses[futures2idx[future]] = future.result()
+        return responses
 
 # %%
 # # %%time
