@@ -536,7 +536,7 @@ class TogetherChat:
 
     @classmethod
     def get_apikey(cls):
-        return api_key=os.environ.get("TOGETHER_API_KEY") or open(os.path.expanduser("~/.together_apikey")).read().strip()
+        return os.environ.get("TOGETHER_API_KEY") or open(os.path.expanduser("~/.together_apikey")).read().strip()
 
     @classmethod
     def msg(cls, messages=None, model=None, **kwargs):
