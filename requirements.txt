@@ -17,3 +17,4 @@ google-cloud-aiplatform
 google-cloud-texttospeech
 lxml
 pytz
+groq
