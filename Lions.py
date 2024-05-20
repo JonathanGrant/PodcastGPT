@@ -35,7 +35,6 @@ import html
 import random
 import os
 import google.generativeai as genai
-import PIL.Image
 import tempfile
 
 import jonlog
