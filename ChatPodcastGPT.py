@@ -342,7 +342,7 @@ class GoogleChat:
         return os.environ.get("GEMINI_API_KEY") or open(os.path.expanduser("~/.google_apikey")).read().strip()
 
     @classmethod
-    def consolidate_messages(cls, message_list):
+    def consolidate_messages(cls, message_list, keep_system=False):
         if not message_list:
             return []
         consolidated = []
@@ -353,7 +353,7 @@ class GoogleChat:
             role = message.get("role")
             content = message.get("content", "")
     
-            if role == "system":
+            if role == "system" and not keep_system:
                 role = "user"
             if role == current_role:
                 current_content += "\n" + content
@@ -387,19 +387,23 @@ class GoogleChat:
             {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
             {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
         ]
+
+        # Consolidate messages
+        consolidated_messages = cls.consolidate_messages(messages, keep_system=True)
+        final_msg, system_msg = "Continue", None
+        if consolidated_messages[-1]['role'] == 'user':
+            final_msg = consolidated_messages.pop(-1)['content']
+        if consolidated_messages[0]['role'] == 'system':
+            system_msg = consolidated_messages.pop(0)['content']
         
         # Initialize the model
         model = google.generativeai.GenerativeModel(
             model_name=model_name,
             safety_settings=safety_settings,
             generation_config=generation_config,
+            system_instruction=system_msg,
         )
-        
-        # Consolidate messages
-        consolidated_messages = cls.consolidate_messages(messages)
-        final_msg = "Continue"
-        if consolidated_messages[-1]['role'] == 'user':
-            final_msg = consolidated_messages.pop(-1)['content']
+
         # Create chat session history
         history = []
         for msg in consolidated_messages:
@@ -679,7 +683,7 @@ Respond with the hosts names before each line like {hosts[0]}: and {hosts[1]}:""
         self._hosts = hosts
         self._history.append({
             "role": "user", "content": f"""Generate an informative, entertaining, and very detailed podcast episode about {topic}.
-Make sure to teach complex topics in an intuitive way.""".replace("\n", " ")
+Respond with the hosts names before each line like\n\n{hosts[0]}: ...\nand\n{hosts[1]}:...\n"""
         })
         self._tts_h1, self._tts_h2 = host_voices
 
