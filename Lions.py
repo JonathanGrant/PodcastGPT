@@ -206,7 +206,7 @@ def do_email(mail, email_data):
         mail.mark_read(email_data['id'])
         return
     chat = GoogleAI()
-    persona, resp = chat.message(emails[-3]['attachments'])
+    persona, resp = chat.message(email_data)
     mail.forward_email(email_data['id'], f"{resp}\n\nFrom: {persona} (gemini-1.5-flash)")
     mail.mark_read(email_data['id'])
 
