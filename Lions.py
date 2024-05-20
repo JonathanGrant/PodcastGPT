@@ -116,12 +116,12 @@ class ZohoMail:
         msg['From'] = '700lions@zohomail.com'
         msg['Subject'] = f"[Gemini] {tag} Fwd: {original_msg['Subject']}"
         recipients = [original_msg['From']] + original_msg.get_all('Cc', [])
-        if 'worker' not in tag.lower():
+        if 'worker' not in tag.lower() and 'boring' not in tag.lower():
             recipients += ['jonathanallengrant@gmail.com']
     
         # Attach the forward text
         msg.attach(MIMEText(forward_text, 'plain'))
-        
+
         # Attach any attachments from the original message
         for part in original_msg.walk():
             if part.get_content_maintype() == 'multipart':
@@ -211,7 +211,7 @@ def do_email(mail, email_data):
     mail.mark_read(email_data['id'])
 
 
-for m in mail.get(limit=10):
+for m in mail.get(limit=1000):
     do_email(mail, m)
 
 
