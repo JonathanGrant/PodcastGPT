@@ -1,11 +1,11 @@
-name: Run JonReads
+name: Run Lions
 on:
   schedule:
     - cron: '6 * * * *'
   workflow_dispatch: # This allows manual triggering
 jobs:
   run-scripts:
-    name: Run jonreads script
+    name: Run lions script
     runs-on: ubuntu-latest
     env:
       OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
