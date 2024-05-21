@@ -115,7 +115,7 @@ class ZohoMail:
         msg = MIMEMultipart()
         msg['From'] = '700lions@zohomail.com'
         msg['Subject'] = f"[Gemini] {tag} Fwd: {original_msg['Subject']}"
-        recipients = [original_msg['From']] + original_msg.get_all('Cc', [])
+        recipients = [original_msg['To']] + original_msg.get_all('Cc', [])
         if 'worker' not in tag.lower() and 'boring' not in tag.lower():
             recipients += ['jonathanallengrant@gmail.com']
     
