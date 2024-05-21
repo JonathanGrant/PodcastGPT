@@ -61,6 +61,7 @@ class ZohoMail:
     def search_emails(self):
         # 700lions@gmail.com
         resp, data = self._mail.search(None, 'unseen FROM "700lions@gmail.com"')
+        # resp, data = self._mail.search(None, 'FROM "700lions@gmail.com"')
         return data[0].split()
 
     @functools.cache
@@ -115,7 +116,7 @@ class ZohoMail:
         msg = MIMEMultipart()
         msg['From'] = '700lions@zohomail.com'
         msg['Subject'] = f"[Gemini] {tag} Fwd: {original_msg['Subject']}"
-        recipients = [original_msg['To']] + original_msg.get_all('Cc', [])
+        recipients = [original_msg['From']] + original_msg.get_all('To', [''])[0].split(',') + original_msg.get_all('Cc', [])
         if 'worker' not in tag.lower() and 'boring' not in tag.lower():
             recipients += ['jonathanallengrant@gmail.com']
     
@@ -213,8 +214,6 @@ def do_email(mail, email_data):
 
 for m in mail.get(limit=1000):
     do_email(mail, m)
-
-
 
 
 
