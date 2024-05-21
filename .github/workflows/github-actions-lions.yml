@@ -1,7 +1,7 @@
 name: Run Lions
 on:
   schedule:
-    - cron: '6,36 * * * *'
+    - cron: '53 * * * *'
   workflow_dispatch: # This allows manual triggering
 jobs:
   run-scripts:
