@@ -111,6 +111,9 @@ class ZohoMail:
     def forward_email(self, msg_id, forward_text):
         original_msg = self.get_msg(msg_id)
         tag = forward_text.split(']')[0] + ']'
+        if 'boring' in tag.lower():
+            logger.info("Skipping boring")
+            return
         
         # Create a new MIMEMultipart message for forwarding
         msg = MIMEMultipart()
