@@ -16,6 +16,6 @@ mistralai
 google-cloud-aiplatform
 google-cloud-texttospeech
 lxml
-pytz
+pytz>=2024.1
 groq
 google.generativeai
