@@ -17,39 +17,50 @@ jobs:
     steps:
       # Step 1: Checkout the repository
       - name: Checkout code
-        uses: actions/checkout@v4 # Updated from @v2
+        uses: actions/checkout@v4
 
       - name: setup-ffmpeg
-        uses: FedericoCarboni/setup-ffmpeg@v2
+        uses: FedericoCarboni/setup-ffmpeg@v2 # Consider checking for newer versions (v3 is available)
 
       # Step 2: Setup Python
       - name: Set up Python
-        uses: actions/setup-python@v5 # Updated from @v2
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.11' # '.x' is often not needed, '3.11' is usually sufficient
+          python-version: '3.11'
 
-      # Step 3: Install dependencies
-      - name: Install dependencies
+      # NEW STEP: Install system dependencies for lxml
+      - name: Install lxml system dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y libxml2-dev libxslt-dev python3-dev
+
+      # Step 3: Install Python dependencies
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip setuptools wheel
-          pip cache purge # Optional: Clears pip cache
-          pip install -r requirements.txt
+          echo "--- Pip, Setuptools, Wheel versions ---"
+          pip --version
+          python -c "import setuptools; print('Setuptools version:', setuptools.__version__)"
+          python -c "import wheel; print('Wheel version:', wheel.__version__)"
+          echo "--- Installing requirements with verbose output ---"
+          # Using -vv instead of -vvv for slightly less overwhelming logs, but still informative
+          pip install --verbose --verbose --no-cache-dir -r requirements.txt
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v1 # Consider updating if a newer major version (e.g., @v4) is available and compatible
+        uses: aws-actions/configure-aws-credentials@v4 # Updated to v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2 # Updated from @v0.4.0 (check for latest version)
+        uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GOOGLE_CREDENTIALS }}
 
       # Step 4: Run the Python script for 'cs'
       - name: Run arxiv script for cs
-        run: python -c 'from arxiv_langchain import run; run("cs")' || echo "Running script for cs failed" # Added more descriptive echo
+        run: python -c 'from arxiv_langchain import run; run("cs")' || echo "Running script for cs failed"
 
       # Repeat Step 4 for other categories
       - name: Run arxiv script for osf
