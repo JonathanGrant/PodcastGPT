@@ -18,6 +18,7 @@ import openai
 import tiktoken
 import tempfile
 import IPython
+import shutil
 import enum
 import jonlog
 import json
@@ -35,6 +36,16 @@ import random
 import re
 import io
 import retrying
+import os
+import re
+import io
+import concurrent.futures
+import tempfile
+import shutil
+import subprocess
+import logging
+import pydub # Still needed for fallback merge or potential segment validation
+import IPython # For display in notebooks
 import pydub
 from xml.dom import minidom
 from xml.etree import ElementTree as ET
@@ -153,6 +164,9 @@ class OpenAITTS:
         "sage",
         "shimmer",
     }
+
+    MAN = "onyx"
+    WOMAN = "coral"
 
     def __init__(self, voice='alloy', model='gpt-4o-mini-tts', api_key=None):
         """

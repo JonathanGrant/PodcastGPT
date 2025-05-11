@@ -22,6 +22,7 @@ from ChatPodcastGPT import *
 import collections
 import concurrent.futures
 import os
+import shutil
 import feedparser
 import logging
 import re
@@ -118,8 +119,8 @@ story of the paper completely, in full verbose detail, as a single response. Mak
 complex topics in an intuitive way. The episode should be informative, entertaining, and very
 detailed - a systematic and narrative review of the research paper.
 </answer>"""
+# -
 
-# + jupyter={"source_hidden": true}
 SHORT_SYSTEM = """You are an award-winning podcast with hosts Tom and Jen.
 Your podcast has {style} commercials relevant to the paper you just covered.
 
@@ -239,8 +240,6 @@ COMMERCIAL_STYLES = [
 ]
 
 
-# -
-
 def clean_text(text):
     # Remove References Section
     text = re.sub(r'\bReferences?\b.*', '', text, flags=re.DOTALL|re.IGNORECASE)
@@ -318,7 +317,7 @@ class PDFEpisode(Episode):
         return parts
 
     @retrying.retry(stop_max_attempt_number=3, wait_fixed=2000)
-    def write_one_part(self, chat_msg, with_commercial=False):
+    def write_one_part(self, chat_msg, with_commercial=True):
         extra_system = f"""This podcast investigates research papers with intrigue and depth, blending expert analysis with compelling storytelling to illuminate cutting-edge discoveries.
 Similar to the style of the Darknet Diaries podcast.
 Tell the story of the paper completely, in full verbose detail, as a single response.
@@ -518,7 +517,7 @@ MODEL = DEFAULT_TEXTGEN_MODEL
 HOST_VOICES = get_random_voices(aws=False, google=False)
 PODCAST_ARGS = ("ArxivPodcastGPT", "ArxivPodcastGPT.github.io", "podcasts/ComputerScience/Consolidated/podcast.xml")
 
-def create_large_episode(arxiv_category, limit=5, add_commercials=False):
+def create_large_episode(arxiv_category, limit=5, add_commercials=True):
     """Create a podcast episode with Arxiv papers."""
     audios, texts = [JINGLE_AUDIO], []
     successes = 0
@@ -626,12 +625,12 @@ def episode_with_pdfs(dirname, upload=None):
 # +
 # # # %%time
 # sub = 'cs.GT'
-# ep = run(sub, upload=True, limit=5)
+# ep = run(sub, upload=True, limit=1)
 # IPython.display.Audio(merge_mp3s(ep.sounds))
 
-# # # # # d = '/Users/jong/Documents/PodPapers/Conciousness'
-# # # # # ep = episode_with_pdfs(d)
-# # # # # IPython.display.Audio(merge_mp3s(ep.sounds))
+# # # # # # d = '/Users/jong/Documents/PodPapers/Conciousness'
+# # # # # # ep = episode_with_pdfs(d)
+# # # # # # IPython.display.Audio(merge_mp3s(ep.sounds))
 # -
 
 1
