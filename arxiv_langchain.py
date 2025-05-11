@@ -13,6 +13,11 @@
 # ---
 
 # +
+import collections
+try:
+    collections.Callable = collections.abc.Callable
+except:
+    pass
 from ChatPodcastGPT import *
 import collections
 import concurrent.futures
@@ -33,13 +38,18 @@ from urllib.parse import unquote
 # MAX_TOKENS = 60_000 # GPT4-128k
 MAX_TOKENS = 60_000
 JOIN_NUM_DEFAULT = 300
-# DEFAULT_TEXTGEN_MODEL = 'gpt-4-0125-preview'
-# DEFAULT_TEXTGEN_MODEL = "GOOGLE/" + GoogleChat.MODELS["gemini-1.5-flash"]
-DEFAULT_TEXTGEN_MODEL = "ANTHROPIC/" + AnthropicChat.MODELS["claude-haiku"]
+
 JINGLE_FILE_PATH = 'jazzstep.mp3'
 with open(JINGLE_FILE_PATH, 'rb') as jingle_file:
     JINGLE_AUDIO = jingle_file.read()
 JINGLE_AUDIO = JINGLE_AUDIO[:len(JINGLE_AUDIO) // 4]  # Shorten to just 4 sec
+
+def get_random_textgen_model():
+    return random.choice([
+        'ANTHROPIC/claude-3-7-sonnet-20250219',
+        'ANTHROPIC/claude-3-7-sonnet-20250219',
+    ])
+DEFAULT_TEXTGEN_MODEL = 'ANTHROPIC/claude-3-7-sonnet-20250219'
 
 # + jupyter={"source_hidden": true}
 METAPROMPT_SYSTEM = """You are an award-winning podcast with hosts Tom and Jen. Your podcast investigates research papers
@@ -250,8 +260,10 @@ def clean_text(text):
 class PDFEpisode(Episode):
     PDFPart = collections.namedtuple('PDFPart', 'title text')
 
-    def __init__(self, title, model=DEFAULT_TEXTGEN_MODEL, **kwargs):
+    def __init__(self, title, model=None, **kwargs):
         self.title = title
+        if model is None:
+            model = get_random_textgen_model()
         self.model = model
         self.topic = kwargs.pop('topic', self.title) or self.title
         self._kwargs = kwargs
@@ -317,7 +329,9 @@ Afterwards, give your personal reflections on the paper and its broader relevanc
 YOU ABSOLUTELY MUST respond with the HOST NAME BEFORE EVERY LINE like \nTom: ...\nJen: ...
 """
         # chat = PodcastChat(**{**self._kwargs, 'topic': self.title, 'extra_system': extra_system})
-        chat = PodcastChat(**{**self._kwargs, 'system': METAPROMPT_SYSTEM.format(PAPER_TITLE=self.title, ENTIRE_PAPER_TEXT=chat_msg), 'topic': self.title})
+        chat = PodcastChat(**{**self._kwargs,
+                              'system': METAPROMPT_SYSTEM.format(PAPER_TITLE=self.title, ENTIRE_PAPER_TEXT=chat_msg),
+                              'topic': self.title})
         # msg, aud = chat.step(msg=chat_msg, model=self.model, ret_aud=True, min_length=200)
         msg, aud = chat.step(msg=None, model=self.model, ret_aud=True, min_length=200)
         # chat._history.pop(2)
@@ -359,10 +373,12 @@ YOU ABSOLUTELY MUST respond with the HOST NAME BEFORE EVERY LINE like \nTom: ...
 class ArxivEpisode(PDFEpisode):
     ArxivPart = collections.namedtuple('ArxivPart', 'title text')
 
-    def __init__(self, arxiv_id, id_is_url=False, title=None, model=DEFAULT_TEXTGEN_MODEL, **kwargs):
+    def __init__(self, arxiv_id, id_is_url=False, title=None, model=None, **kwargs):
         self.arxiv_id = arxiv_id
         self.id_is_url = id_is_url
         self.title = title
+        if model is None:
+            model = get_random_textgen_model()
         self.model = model
         self.data = self.process_pdf(self.arxiv_id)
         self.title = self.arxiv_title = self.get_title(self.arxiv_id)
@@ -499,7 +515,7 @@ class ArxivRunner:
 MODEL = DEFAULT_TEXTGEN_MODEL
 # HOST_VOICES = [OpenAITTS(OpenAITTS.MAN), OpenAITTS(OpenAITTS.WOMAN)]
 # HOST_VOICES = [GoogleTTS(GoogleTTS.MAN), GoogleTTS(GoogleTTS.WOMAN)]
-HOST_VOICES = get_random_voices()
+HOST_VOICES = get_random_voices(aws=False, google=False)
 PODCAST_ARGS = ("ArxivPodcastGPT", "ArxivPodcastGPT.github.io", "podcasts/ComputerScience/Consolidated/podcast.xml")
 
 def create_large_episode(arxiv_category, limit=5, add_commercials=False):
@@ -518,8 +534,9 @@ def create_large_episode(arxiv_category, limit=5, add_commercials=False):
             arxiv_kwargs['id_is_url'] = True
             
         logger.info(f"Trying arxiv ID {arxiv_id} in {arxiv_category} with {successes}/{limit}")
+        vcs = get_random_voices(aws=False, google=False)
         try:
-            arxiv_episode = ArxivEpisode(arxiv_id, model=MODEL, podcast_args=PODCAST_ARGS, host_voices=HOST_VOICES, **arxiv_kwargs)
+            arxiv_episode = ArxivEpisode(arxiv_id, model=MODEL, podcast_args=PODCAST_ARGS, host_voices=vcs, **arxiv_kwargs)
             outline, txt = arxiv_episode.step()
             logger.info(f"Got outline: {outline[:500]}")
         except Exception as e:
@@ -529,7 +546,7 @@ def create_large_episode(arxiv_category, limit=5, add_commercials=False):
         audios.append(merge_mp3s(arxiv_episode.sounds))
         audios.append(JINGLE_AUDIO)
         arxiv_title = re.sub('[^0-9a-zA-Z]+', ' ', arxiv_episode.arxiv_title)
-        texts.append(f'ChatGPT generated podcast using model={MODEL} for https://arxiv.org/abs/{arxiv_id} {arxiv_title}')
+        texts.append(f'ChatGPT generated podcast using model={MODEL}, voices={vcs} for {"https://arxiv.org/abs/" if arxiv_category != "osf" else ""}{arxiv_id} {arxiv_title}')
         successes += 1
         logger.info(texts[-1])
 
@@ -605,17 +622,18 @@ def episode_with_pdfs(dirname, upload=None):
         ep.upload(f'{datetime.datetime.now():%Y-%m-%d} {upload}: {get_title(texts)}', '\n\n'.join(texts))
     return ep
 
+
 # +
 # # # %%time
-# sub = 'cs.AI'
-# ep = run(sub, upload=False, limit=1)
+# sub = 'cs.GT'
+# ep = run(sub, upload=True, limit=5)
 # IPython.display.Audio(merge_mp3s(ep.sounds))
 
-# # # # d = '/Users/jong/Documents/PodPapers/Conciousness'
-# # # # ep = episode_with_pdfs(d)
-# # # # IPython.display.Audio(merge_mp3s(ep.sounds))
+# # # # # d = '/Users/jong/Documents/PodPapers/Conciousness'
+# # # # # ep = episode_with_pdfs(d)
+# # # # # IPython.display.Audio(merge_mp3s(ep.sounds))
 # -
 
-
+1
 
 
