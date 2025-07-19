@@ -1,18 +1,11 @@
-# ---
-# jupyter:
-#   jupytext:
-#     text_representation:
-#       extension: .py
-#       format_name: light
-#       format_version: '1.5'
-#       jupytext_version: 1.15.2
-#   kernelspec:
-#     display_name: Python 3 (ipykernel)
-#     language: python
-#     name: python3
-# ---
+#!/usr/bin/env python3
+"""
+MoneyStuff - Standalone Matt Levine newsletter podcast generator.
 
-# +
+Fetches Money Stuff articles, converts them to audio using KokoroTTS,
+and uploads them to Overcast or saves as episodes.
+"""
+
 import requests
 import datetime
 import re
@@ -21,18 +14,121 @@ import os
 import tempfile
 from urllib.parse import urljoin
 from bs4 import BeautifulSoup as BS
-import jonlog
-from ChatPodcastGPT import *
+import logging
+import time
+import uuid
+import replicate
 
-logger = jonlog.getLogger()
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# +
-import os
-import re
+# ============================================================================
+# Minimal KokoroTTS Implementation
+# ============================================================================
+
+class KokoroTTS:
+    """Simplified KokoroTTS implementation using Replicate API."""
+    WOMAN_1 = "af_aoede"
+    WOMAN_2 = "af_jessica"
+    WOMAN_3 = "af_river"
+    WOMAN_4 = "af_sarah"
+    MAN_1   = "am_fenrir"
+    MAN_2   = "am_liam"
+    MAN_3   = "bm_lewis"
+    DEFAULT_VOICE = WOMAN_3
+    _MODEL = "jaaari/kokoro-82m:f559560eb822dc509045f3921a1921234918b91739db4bf3daab2169b71c7a13"
+
+    def __init__(self, voice_id: str | None = None, timeout: float = 60.0):
+        api_token = os.environ.get("REPLICATE_API_TOKEN")
+        if not api_token:
+            try:
+                with open("/Users/jong/.replicate_apikey") as f:
+                    api_token = f.read().strip()
+            except FileNotFoundError:
+                raise ValueError("REPLICATE_API_TOKEN not found in environment or ~/.replicate_apikey")
+        
+        os.environ["REPLICATE_API_TOKEN"] = api_token
+        self.voice_id = voice_id or self.DEFAULT_VOICE
+        self.client = replicate.Client(api_token=api_token)
+        self.timeout = timeout
+
+    @staticmethod
+    def list_voices() -> list[str]:
+        return [KokoroTTS.WOMAN_1, KokoroTTS.WOMAN_2, KokoroTTS.WOMAN_3, KokoroTTS.WOMAN_4,
+                KokoroTTS.MAN_1, KokoroTTS.MAN_2, KokoroTTS.MAN_3]
+
+    def _download(self, url: str) -> bytes:
+        r = requests.get(url, timeout=30)
+        r.raise_for_status()
+        return r.content
+
+    def _normalize_output(self, raw) -> bytes:
+        """Handle different Replicate output formats."""
+        if isinstance(raw, (list, tuple)):
+            for el in raw:
+                if el:
+                    raw = el
+                    break
+        
+        if hasattr(raw, "read"):
+            data = raw.read()
+        elif hasattr(raw, "url"):
+            data = self._download(raw.url())
+        elif isinstance(raw, str):
+            data = self._download(raw)
+        else:
+            raise TypeError(f"Unknown output type: {type(raw)}")
+        
+        if not data or len(data) < 500:
+            raise ValueError("Empty/too-small audio result")
+        return data
+
+    def tts(self, text: str, voice_id: str | None = None, max_retries: int = 3) -> bytes:
+        """Generate TTS audio with retries."""
+        voice = voice_id or self.voice_id
+        
+        for attempt in range(max_retries):
+            try:
+                start = time.time()
+                raw = self.client.run(
+                    self._MODEL,
+                    input={"text": text, "voice": voice},
+                )
+                data = self._normalize_output(raw)
+                logger.debug(f"TTS completed in {time.time() - start:.2f}s")
+                return data
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    raise
+                time.sleep(1.5 * (attempt + 1))
+                logger.warning(f"TTS attempt {attempt + 1} failed: {e}")
+        
+        raise RuntimeError("All TTS attempts failed")
+
+# ============================================================================
+# Simple Episode Class Stub
+# ============================================================================
+
+class Episode:
+    """Simplified Episode class for audio storage."""
+    def __init__(self, topic: str = ""):
+        self.topic = topic
+        self.sounds = []
+        self.texts = []
+
+    def upload(self, title: str, description: str):
+        """Stub upload method - just logs the attempt."""
+        logger.info(f"Episode upload called: {title} ({len(self.sounds)} audio segments)")
+        # In the real implementation, this would upload to RSS feed
+        # For now, we just log it
+
+# ============================================================================
+# Overcast Uploader
+# ============================================================================
+
 import mimetypes
 from typing import Dict, Optional
-import requests
-from bs4 import BeautifulSoup  # pip install beautifulsoup4
 
 BASE_URL = "https://overcast.fm"
 LOGIN_PATH = "/login"
@@ -270,10 +366,11 @@ def clean_text(txt):
     return txt
 
 
-# +
-import requests, re, html, time
-from bs4 import BeautifulSoup as BS
-from urllib.parse import urljoin
+# ============================================================================
+# Money Stuff Article Scraper  
+# ============================================================================
+
+import html
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Iterable
 
@@ -531,8 +628,13 @@ class MoneyStuff:
         return "\n\n".join(filter(None, out)).strip()
 
 
-# +
-import io, os, tempfile, subprocess, shutil, logging
+# ============================================================================
+# Audio Utilities
+# ============================================================================
+
+import io
+import subprocess
+import shutil
 from typing import List
 from pydub import AudioSegment
 
@@ -648,14 +750,15 @@ def merge_wav(wav_bytes_list: List[bytes], use_ffmpeg: bool = True, strict: bool
         return merge_wav_pydub(valid)
 
 
-# +
-import os, random, tempfile, logging, time, math, traceback
+# ============================================================================
+# Main Runner
+# ============================================================================
+
+import math
+import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Any, Tuple
 from itertools import count
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 # Tune these
 MAX_WORKERS          = 6          # Kokoro is lightweight; keep modest to avoid rate limits
@@ -794,14 +897,7 @@ def run(narticles: int = 1):
                     logger.exception("Episode upload failed: %s", e)
 
     print("\nRun complete.")
-# -
 
-
-
-# +
-# run(1)
-
-# +
-# # !pip install --upgrade beautifulsoup4
-# -
-
+if __name__ == "__main__":
+    # Example usage: run(1) to process 1 article
+    run(1)
