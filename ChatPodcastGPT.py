@@ -283,9 +283,77 @@ class AWSPollyTTS:
 from google.cloud import texttospeech_v1 as texttospeech
 
 class GoogleTTS:
-    WOMAN = 'en-US-Wavenet-F'
-    MAN = 'en-US-Wavenet-D'
+    """Text-to-speech via Google Cloud TTS."""
+
+    # Default voices use Chirp3 HD models
+    WOMAN = 'en-US-Chirp3-HD-Leda'
+    MAN = 'en-US-Chirp3-HD-Charon'
     BRIT_WOMAN = 'en-GB-Wavenet-A'
+
+    # Chirp3 HD voice catalog
+    CHIRP3_HD_ACHERNAR = 'en-US-Chirp3-HD-Achernar'
+    CHIRP3_HD_ACHIRD = 'en-US-Chirp3-HD-Achird'
+    CHIRP3_HD_ALGENIB = 'en-US-Chirp3-HD-Algenib'
+    CHIRP3_HD_ALGIEBA = 'en-US-Chirp3-HD-Algieba'
+    CHIRP3_HD_ALNILAM = 'en-US-Chirp3-HD-Alnilam'
+    CHIRP3_HD_AOEDE = 'en-US-Chirp3-HD-Aoede'
+    CHIRP3_HD_AUTONOE = 'en-US-Chirp3-HD-Autonoe'
+    CHIRP3_HD_CALLIRRHOE = 'en-US-Chirp3-HD-Callirrhoe'
+    CHIRP3_HD_CHARON = 'en-US-Chirp3-HD-Charon'
+    CHIRP3_HD_DESPINA = 'en-US-Chirp3-HD-Despina'
+    CHIRP3_HD_ENCELADUS = 'en-US-Chirp3-HD-Enceladus'
+    CHIRP3_HD_ERINOME = 'en-US-Chirp3-HD-Erinome'
+    CHIRP3_HD_FENRIR = 'en-US-Chirp3-HD-Fenrir'
+    CHIRP3_HD_GACRUX = 'en-US-Chirp3-HD-Gacrux'
+    CHIRP3_HD_IAPETUS = 'en-US-Chirp3-HD-Iapetus'
+    CHIRP3_HD_KORE = 'en-US-Chirp3-HD-Kore'
+    CHIRP3_HD_LAOMEDEIA = 'en-US-Chirp3-HD-Laomedeia'
+    CHIRP3_HD_LEDA = 'en-US-Chirp3-HD-Leda'
+    CHIRP3_HD_ORUS = 'en-US-Chirp3-HD-Orus'
+    CHIRP3_HD_PUCK = 'en-US-Chirp3-HD-Puck'
+    CHIRP3_HD_PULCHERRIMA = 'en-US-Chirp3-HD-Pulcherrima'
+    CHIRP3_HD_RASALGETHI = 'en-US-Chirp3-HD-Rasalgethi'
+    CHIRP3_HD_SADACHBIA = 'en-US-Chirp3-HD-Sadachbia'
+    CHIRP3_HD_SADALTAGER = 'en-US-Chirp3-HD-Sadaltager'
+    CHIRP3_HD_SCHEDAR = 'en-US-Chirp3-HD-Schedar'
+    CHIRP3_HD_SULAFAT = 'en-US-Chirp3-HD-Sulafat'
+    CHIRP3_HD_UMBRIEL = 'en-US-Chirp3-HD-Umbriel'
+    CHIRP3_HD_VINDEMIATRIX = 'en-US-Chirp3-HD-Vindemiatrix'
+    CHIRP3_HD_ZEPHYR = 'en-US-Chirp3-HD-Zephyr'
+    CHIRP3_HD_ZUBENELGENUBI = 'en-US-Chirp3-HD-Zubenelgenubi'
+
+    CHIRP3_VOICES = [
+        CHIRP3_HD_ACHERNAR,
+        CHIRP3_HD_ACHIRD,
+        CHIRP3_HD_ALGENIB,
+        CHIRP3_HD_ALGIEBA,
+        CHIRP3_HD_ALNILAM,
+        CHIRP3_HD_AOEDE,
+        CHIRP3_HD_AUTONOE,
+        CHIRP3_HD_CALLIRRHOE,
+        CHIRP3_HD_CHARON,
+        CHIRP3_HD_DESPINA,
+        CHIRP3_HD_ENCELADUS,
+        CHIRP3_HD_ERINOME,
+        CHIRP3_HD_FENRIR,
+        CHIRP3_HD_GACRUX,
+        CHIRP3_HD_IAPETUS,
+        CHIRP3_HD_KORE,
+        CHIRP3_HD_LAOMEDEIA,
+        CHIRP3_HD_LEDA,
+        CHIRP3_HD_ORUS,
+        CHIRP3_HD_PUCK,
+        CHIRP3_HD_PULCHERRIMA,
+        CHIRP3_HD_RASALGETHI,
+        CHIRP3_HD_SADACHBIA,
+        CHIRP3_HD_SADALTAGER,
+        CHIRP3_HD_SCHEDAR,
+        CHIRP3_HD_SULAFAT,
+        CHIRP3_HD_UMBRIEL,
+        CHIRP3_HD_VINDEMIATRIX,
+        CHIRP3_HD_ZEPHYR,
+        CHIRP3_HD_ZUBENELGENUBI,
+    ]
 
     def __init__(self, voice_name=None):
         self.client = texttospeech.TextToSpeechClient()
@@ -317,14 +385,18 @@ class GoogleTTS:
 
     @classmethod
     def list_voices(cls):
-        data = texttospeech.TextToSpeechClient().list_voices()
-        voices = [
-            v.name for v in data.voices
-            if v.name[:2] == 'en'
-            and 'studio' not in v.name.lower()
-            and 'journey' not in v.name.lower()
-        ]
-        return voices
+        try:
+            data = texttospeech.TextToSpeechClient().list_voices()
+            voices = [
+                v.name for v in data.voices
+                if v.name[:2] == 'en'
+                and 'studio' not in v.name.lower()
+                and 'journey' not in v.name.lower()
+            ]
+        except Exception:
+            voices = []
+
+        return sorted(set(voices + cls.CHIRP3_VOICES))
 
     def tostring(self): return f"[GoogleTTS] {self._voice_name=}"
     def __repr__(self): return self.tostring()
