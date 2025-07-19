@@ -16,6 +16,7 @@
 import requests
 import datetime
 import re
+import random
 from bs4 import BeautifulSoup as BS
 import jonlog
 from ChatPodcastGPT import *
@@ -108,6 +109,7 @@ class MoneyStuff:
 # -
 
 def run(ndays=1):
+    voices = GoogleTTS.CHIRP3_VOICES
     for src, prefix in [(MoneyStuff(), 'MoneyStuff')]:
         print(prefix)
         # if prefix == 'MoneyStuff': continue
@@ -117,11 +119,14 @@ def run(ndays=1):
         for article in articles:
             logger.info(f"Writing {article}")
             lines = src.get(article)
-            ep = Episode(
-                topic=article['title'],
-                episode_type='pure_tts',
-            )
-            ep.step(msg=lines)
+            audio_segments = []
+            for line in lines:
+                voice_name = random.choice(voices)
+                tts = GoogleTTS(voice_name)
+                audio_segments.append(tts.tts(line))
+            ep = Episode(topic=article['title'])
+            ep.sounds.append(merge_mp3s(audio_segments))
+            ep.texts.extend(lines)
             ep.upload(f"[{prefix}] " + article['title'][:200], f'{prefix} tts: {article["title"]}')
 
 # +
