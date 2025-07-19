@@ -16,11 +16,49 @@
 import requests
 import datetime
 import re
+import random
+import os
+import tempfile
+from urllib.parse import urljoin
 from bs4 import BeautifulSoup as BS
 import jonlog
 from ChatPodcastGPT import *
 
 logger = jonlog.getLogger()
+
+
+class OvercastUploader:
+    """Experimental uploader for Overcast Plus accounts."""
+
+    LOGIN_URL = "https://overcast.fm/login"
+    UPLOADS_URL = "https://overcast.fm/uploads"
+
+    def __init__(self, email, password):
+        self.email = email
+        self.password = password
+        self.session = requests.Session()
+
+    def login(self):
+        data = {"email": self.email, "password": self.password, "then": "uploads"}
+        resp = self.session.post(self.LOGIN_URL, data=data)
+        return resp.status_code in (200, 302)
+
+    def upload(self, file_path):
+        if not self.login():
+            raise RuntimeError("Overcast login failed")
+        page = self.session.get(self.UPLOADS_URL)
+        soup = BS(page.text, "html.parser")
+        form = soup.find("form", id="upload_form")
+        if not form:
+            raise RuntimeError("Upload form not found")
+        action = form.get("action", self.UPLOADS_URL)
+        upload_url = action if action.startswith("http") else urljoin(self.UPLOADS_URL, action)
+        key_prefix = form.get("data-key-prefix", "")
+        with open(file_path, "rb") as f:
+            files = {"file": (os.path.basename(file_path), f)}
+            data = {"key": key_prefix + os.path.basename(file_path)} if key_prefix else None
+            resp = self.session.post(upload_url, files=files, data=data)
+        return resp.status_code in (200, 201, 204)
 
 
 # -
@@ -108,21 +146,36 @@ class MoneyStuff:
 # -
 
 def run(ndays=1):
+    voices = GoogleTTS.CHIRP3_VOICES
+    oc_email = os.environ.get("OVERCAST_EMAIL")
+    oc_pass = os.environ.get("OVERCAST_PASSWORD")
+    oc_uploader = OvercastUploader(oc_email, oc_pass) if oc_email and oc_pass else None
     for src, prefix in [(MoneyStuff(), 'MoneyStuff')]:
         print(prefix)
-        # if prefix == 'MoneyStuff': continue
         articles = src.list()
         print(articles)
-        now = datetime.datetime.now()
         for article in articles:
             logger.info(f"Writing {article}")
             lines = src.get(article)
-            ep = Episode(
-                topic=article['title'],
-                episode_type='pure_tts',
-            )
-            ep.step(msg=lines)
-            ep.upload(f"[{prefix}] " + article['title'][:200], f'{prefix} tts: {article["title"]}')
+            audio_segments = []
+            for line in lines:
+                voice_name = random.choice(voices)
+                tts = GoogleTTS(voice_name)
+                audio_segments.append(tts.tts(line))
+            merged_audio = merge_mp3s(audio_segments)
+            if oc_uploader:
+                with tempfile.NamedTemporaryFile(suffix=".mp3") as tmp:
+                    tmp.write(merged_audio)
+                    tmp.flush()
+                    try:
+                        oc_uploader.upload(tmp.name)
+                    except Exception as e:
+                        logger.exception(e)
+            else:
+                ep = Episode(topic=article['title'])
+                ep.sounds.append(merged_audio)
+                ep.texts.extend(lines)
+                ep.upload(f"[{prefix}] " + article['title'][:200], f'{prefix} tts: {article["title"]}')
 
 # +
 # run(1)
