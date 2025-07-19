@@ -13,6 +13,9 @@ jobs:
       MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
       ANTHROPIC_APIKEY: ${{ secrets.ANTHROPIC_APIKEY }}
       TOGETHER_API_KEY: ${{ secrets.TOGETHER_API_KEY }}
+      REPLICATE_API_TOKEN: ${{ secrets.REPLICATE_API_TOKEN }}
+      OVERCAST_EMAIL: ${{ secrets.OVERCAST_EMAIL }}
+      OVERCAST_PASSWORD: ${{ secrets.OVERCAST_PASSWORD }}
     steps:
       # Step 1: Checkout the repository
       - name: Checkout code
@@ -39,4 +42,4 @@ jobs:
           credentials_json: ${{ secrets.GOOGLE_CREDENTIALS }}
       # Step 4: Run the Python script
       - name: Run mstuff
-        run: python -c 'from MoneyStuff import run; run()'
+        run: python -c 'from MoneyStuff import run; run(1)'
