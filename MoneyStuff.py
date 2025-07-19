@@ -13,7 +13,7 @@ import random
 import os
 import tempfile
 from urllib.parse import urljoin
-from bs4 import BeautifulSoup as BS
+from bs4 import BeautifulSoup
 import logging
 import time
 import uuid
@@ -463,7 +463,7 @@ class MoneyStuff:
 
     def list(self, max_days: int = 5, limit: Optional[int] = None) -> List[ArticleMeta]:
         r = self._get(self.LIST_URL)
-        soup = BS(r.text, 'html.parser')  # list page is simple
+        soup = BeautifulSoup(r.text, 'html.parser')  # list page is simple
         articles = []
         for art in soup.find_all('article'):
             h2 = art.find('h2')
@@ -494,7 +494,7 @@ class MoneyStuff:
             return self._cache[full_url]
 
         page = self._get(full_url).text
-        page_soup = BS(page, 'html.parser')  # outer page simple enough
+        page_soup = BeautifulSoup(page, 'html.parser')  # outer page simple enough
         iframe = page_soup.find('iframe', id='iframeEmail')
         if not iframe:
             raise ValueError(f"iframeEmail not found: {full_url}")
@@ -534,11 +534,11 @@ class MoneyStuff:
         iframe_url = urljoin(base_url, src)
         return self._get(iframe_url).text
 
-    def _parse_fragment(self, fragment: str) -> BS:
+    def _parse_fragment(self, fragment: str) -> BeautifulSoup:
         # Try parsers in priority
         for parser in self.parser_priority:
             try:
-                soup = BS(fragment, parser)
+                soup = BeautifulSoup(fragment, parser)
                 break
             except Exception:
                 continue
@@ -548,13 +548,13 @@ class MoneyStuff:
             wrapped = f"<body>{fragment}</body>"
             for parser in self.parser_priority:
                 try:
-                    soup = BS(wrapped, parser)
+                    soup = BeautifulSoup(wrapped, parser)
                     break
                 except Exception:
                     continue
         return soup.body or soup  # fallback to root
 
-    def _extract_lines(self, body: BS) -> List[str]:
+    def _extract_lines(self, body: BeautifulSoup) -> List[str]:
         text = body.get_text(separator='\n', strip=True)
         lines = []
         for line in text.split('\n'):
@@ -576,7 +576,7 @@ class MoneyStuff:
             return True
         return False
 
-    def _structure_sections(self, body: BS) -> List[Section]:
+    def _structure_sections(self, body: BeautifulSoup) -> List[Section]:
         sections: List[Section] = []
         current = Section(heading=None)
 
