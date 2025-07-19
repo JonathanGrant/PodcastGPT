@@ -146,6 +146,100 @@ class GttsTTS:
 
 
 # %%
+import os, time, tempfile, requests, typing as t
+import replicate, retrying
+
+class KokoroTTS:
+    WOMAN_1 = "af_aoede"
+    WOMAN_2 = "af_jessica"
+    WOMAN_3 = "af_river"
+    WOMAN_4 = "af_sarah"
+    MAN_1   = "am_fenrir"
+    MAN_2   = "am_liam"
+    MAN_3   = "bm_lewis"
+    DEFAULT_VOICE = WOMAN_3
+    _MODEL = "jaaari/kokoro-82m:f559560eb822dc509045f3921a1921234918b91739db4bf3daab2169b71c7a13"
+
+    def __init__(self, voice_id: str | None = None,
+                 model: str | None = None,
+                 client: replicate.Client | None = None,
+                 timeout: float = 60.0,
+                 return_format: str = "wav"):
+        os.environ["REPLICATE_API_TOKEN"] = os.environ.get("REPLICATE_API_TOKEN") or open("/Users/jong/.replicate_apikey").read().strip()
+        self.voice_id = voice_id or self.DEFAULT_VOICE
+        self.model = model or self._MODEL
+        self.client = client or replicate.Client(api_token=os.getenv("REPLICATE_API_TOKEN"))
+        self.timeout = timeout
+        self.return_format = return_format
+
+    @staticmethod
+    def list_voices() -> list[str]:
+        return [KokoroTTS.WOMAN_1, KokoroTTS.WOMAN_2, KokoroTTS.WOMAN_3, KokoroTTS.WOMAN_4,
+                KokoroTTS.MAN_1, KokoroTTS.MAN_2, KokoroTTS.MAN_3]
+
+    def _download(self, url: str) -> bytes:
+        r = requests.get(url, timeout=30)
+        r.raise_for_status()
+        return r.content
+
+    def _normalize_output(self, raw) -> bytes:
+        """
+        Replicate may return:
+          - delivery object with .read() / .url()
+          - plain URL string
+          - list/tuple containing any of the above
+        """
+        # If it's a list, take first non-empty element
+        if isinstance(raw, (list, tuple)):
+            for el in raw:
+                if el:
+                    raw = el
+                    break
+        if hasattr(raw, "read"):
+            data = raw.read()
+        elif hasattr(raw, "url"):
+            data = self._download(raw.url())
+        elif isinstance(raw, str):
+            data = self._download(raw)
+        else:
+            raise TypeError(f"Unknown output type: {type(raw)}")
+        if not data or len(data) < 500:
+            raise ValueError("Empty/too-small audio result")
+        return data
+
+    @retrying.retry(stop_max_attempt_number=5, wait_fixed=1500)
+    def _invoke(self, text: str, voice: str) -> bytes:
+        start = time.time()
+        # KEY FIX: use the client instance; do NOT pass client= to replicate.run
+        raw = self.client.run(
+            self.model,
+            input={"text": text, "voice": voice},
+        )
+        data = self._normalize_output(raw)
+        _elapsed = time.time() - start  # optionally log
+        return data
+
+    def tts(self, text: str, voice_id: str | None = None) -> bytes:
+        voice = voice_id or self.voice_id
+        return self._invoke(text, voice)
+
+    def save(self, text: str, path: str, voice_id: str | None = None) -> str:
+        audio = self.tts(text, voice_id)
+        with open(path, "wb") as f:
+            f.write(audio)
+        return path
+
+    def tts_tmpfile(self, text: str, voice_id: str | None = None) -> str:
+        audio = self.tts(text, voice_id)
+        tmpdir = tempfile.mkdtemp(prefix="kokoro_")
+        out_path = os.path.join(tmpdir, f"out.{self.return_format}")
+        with open(out_path, "wb") as f:
+            f.write(audio)
+        return out_path
+
+
+
+# %%
 class OpenAITTS:
     """
     Generates speech from text using the OpenAI Text-to-Speech API.
@@ -737,8 +831,8 @@ class TogetherChat:
 # %%
 # DEFAULT_MODEL = 'gpt-4-1106-preview'
 # DEFAULT_LENGTH  = 80_000
-DEFAULT_MODEL = 'ANTHROPIC/claude-3-7-sonnet-20250219'
-DEFAULT_LENGTH  = 29_000
+DEFAULT_MODEL = 'ANTHROPIC/claude-sonnet-4-20250514'
+DEFAULT_LENGTH  = 200_000
 
 class Chat:
     class Model(enum.Enum):
