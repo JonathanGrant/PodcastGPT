@@ -107,7 +107,7 @@ executing==1.2.0
 factory-boy==3.2.1
 faiss-cpu==1.7.4
 Faker==13.3.2
-fastapi==0.115.11
+fastapi==0.100.1
 fastavro==1.8.2
 fastcore==1.5.37
 fastjsonschema==2.18.0
