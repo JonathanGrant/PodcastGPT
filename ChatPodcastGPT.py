@@ -1131,7 +1131,7 @@ Format it like this: 1. insert-title-here, 2. another-title-here, ...""".replace
         include = f" Remember to respond with the hosts names like {self.chat._hosts[0]}: and {self.chat._hosts[1]}:"
         msg = msg or self.chat._topic
         if self.episode_type == 'narration':
-            outline = self.get_outline(msg, nparts)
+            outline = self.get_outline(nparts, msg)
             logger.info(f"Outline: {outline}")
             intro_txt, intro_aud = self.chat.step(f"Write the intro for a podcast about {msg}. The outline for the podcast is {', '.join(outline)}. Only write the introduction.{include}", model=self.text_model)
             self.sounds.append(intro_aud)
