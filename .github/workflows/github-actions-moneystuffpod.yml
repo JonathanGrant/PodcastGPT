@@ -1,7 +1,7 @@
 name: Run MStuff
 on:
   schedule:
-    - cron: '6 21 * * *' # This schedules the action to run every day at 9pm UTC which is 4am EDT
+    - cron: '6 21 * * 1-5' # This schedules the action to run every day at 9pm UTC which is 4am EDT
   workflow_dispatch: # This allows manual triggering
 jobs:
   run-scripts:
