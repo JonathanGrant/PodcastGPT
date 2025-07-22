@@ -399,6 +399,37 @@ def is_recent_relative(text: str, max_days: int = 5) -> bool:
         return num <= max_days
     return False
 
+def parse_date_text(text: str, now: Optional[datetime.datetime] = None) -> Optional[datetime.datetime]:
+    """Parse the human-friendly date text from the list page."""
+    if not text:
+        return None
+    if now is None:
+        now = datetime.datetime.utcnow()
+    t = text.strip().lower()
+
+    m = re.match(r"(?:about\s+)?(\d+)\s+hours?\s+ago", t)
+    if m:
+        return now - datetime.timedelta(hours=int(m.group(1)))
+
+    m = re.match(r"(\d+)\s+days?\s+ago", t)
+    if m:
+        return now - datetime.timedelta(days=int(m.group(1)))
+
+    if t == "yesterday":
+        return now - datetime.timedelta(days=1)
+
+    for fmt in ("%B %d", "%b %d"):
+        try:
+            dt = datetime.datetime.strptime(text.strip(), fmt)
+            dt = dt.replace(year=now.year)
+            if dt > now:
+                dt = dt.replace(year=now.year - 1)
+            return dt
+        except Exception:
+            continue
+
+    return None
+
 # ------------------ Data Structures ------------------ #
 
 @dataclass
@@ -406,6 +437,7 @@ class ArticleMeta:
     title: str
     link: str
     date_text: Optional[str] = None
+    date: Optional[datetime.datetime] = None
 
 @dataclass
 class Section:
@@ -472,14 +504,19 @@ class MoneyStuff:
             if not (h2 and t and a and a.get('href')):
                 continue
             date_text = t.get_text(strip=True)
-            if is_recent_relative(date_text, max_days=max_days):
+            parsed_date = parse_date_text(date_text)
+            if parsed_date and (datetime.datetime.utcnow() - parsed_date).days > max_days:
+                continue
+            if is_recent_relative(date_text, max_days=max_days) or parsed_date:
                 articles.append(ArticleMeta(
                     title=clean_ws(h2.get_text()),
                     link=a['href'],
-                    date_text=date_text
+                    date_text=date_text,
+                    date=parsed_date
                 ))
             if limit and len(articles) >= limit:
                 break
+        articles.sort(key=lambda a: a.date or datetime.datetime.min, reverse=True)
         return articles
 
     # ---------- Parsing pipeline ---------- #
